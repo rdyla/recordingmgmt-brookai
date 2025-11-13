@@ -1,3 +1,81 @@
+#!/usr/bin/env bash
+set -e
+
+echo "== Cleaning old Vite starter CSS / assets =="
+
+# Remove any stray App.css at root or in src
+rm -f App.css
+rm -f src/App.css
+
+# Optional: remove starter logo assets if they exist
+rm -f public/vite.svg
+rm -f src/assets/react.svg 2>/dev/null || true
+
+echo "== Resetting src/index.css to Tailwind base =="
+
+cat > src/index.css << 'EOCSS'
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  background-color: #020617; /* slate-950 */
+  color: #e5e7eb;
+}
+
+/* Fallbacks to ensure key classes behave even if Tailwind is picky */
+.bg-slate-900 {
+  background-color: #020617 !important;
+}
+
+.border-slate-700 {
+  border-color: #374151 !important;
+}
+
+.text-slate-100 {
+  color: #f3f4f6 !important;
+}
+
+.w-32 {
+  width: 8rem !important;
+}
+
+.w-64 {
+  width: 16rem !important;
+}
+
+.max-w-xs {
+  max-width: 20rem !important;
+}
+
+input[type="date"],
+input[type="number"],
+select {
+  box-sizing: border-box;
+}
+EOCSS
+
+echo "== Resetting src/main.tsx =="
+
+cat > src/main.tsx << 'EOTS'
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import "./index.css";
+import App from "./App";
+
+createRoot(document.getElementById("root") as HTMLElement).render(
+  <StrictMode>
+    <App />
+  </StrictMode>
+);
+EOTS
+
+echo "== Resetting src/App.tsx to Recording Explorer UI =="
+
+cat > src/App.tsx << 'EOAPP'
 import React, { useEffect, useState } from "react";
 
 type Owner = {
@@ -387,3 +465,6 @@ const App: React.FC = () => {
 };
 
 export default App;
+EOAPP
+
+echo "== Done. Now run your normal build/deploy =="
