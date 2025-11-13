@@ -214,7 +214,7 @@ export default {
     // ) {
       // Only keep this if you added handleDownloadRecording
       // return handleDownloadRecording(req, env);
-    }
+    // }
 
     // ---- Meeting recordings list (new) ----
     if (url.pathname === "/api/meeting/recordings" && req.method === "GET") {
