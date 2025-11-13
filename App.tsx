@@ -11,9 +11,8 @@ type ApiResponse = {
   from?: string;
   to?: string;
   recordings?: Recording[];
-  // Some tenants return "recordings", some may use "phone_recordings" — log and adapt.
-  [key: string]: any;
 };
+
 
 type Owner = {
   type: string;
@@ -138,10 +137,7 @@ const App: React.FC = () => {
   }, []);
 
   // Attempt to normalize recordings array from whatever key Zoom uses
-  const recordings: Recording[] =
-    (data?.recordings as Recording[]) ||
-    (data?.phone_recordings as Recording[]) ||
-    [];
+const recordings: Recording[] = data?.recordings ?? [];
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50 flex flex-col">
@@ -274,73 +270,95 @@ const App: React.FC = () => {
           ) : (
             <div className="overflow-auto">
               <table className="min-w-full text-sm">
-                <thead className="bg-slate-900">
-                  <tr className="text-xs text-slate-400 text-left">
-                    <th className="px-3 py-2">Start time</th>
-                    <th className="px-3 py-2">Caller</th>
-                    <th className="px-3 py-2">Callee</th>
-                    <th className="px-3 py-2">Owner</th>
-                    <th className="px-3 py-2">Type</th>
-                    <th className="px-3 py-2">Duration (s)</th>
-                    <th className="px-3 py-2">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recordings.map((rec: any, idx: number) => (
-                    <tr
-                      key={rec.id || rec.recording_id || idx}
-                      className="border-t border-slate-800/80 hover:bg-slate-800/40"
-                    >
-                      <td className="px-3 py-2 whitespace-nowrap">
-                        {rec.start_time ||
-                          rec.recording_start_time ||
-                          "—"}
-                      </td>
-                      <td className="px-3 py-2">
-                        {rec.caller_name || rec.caller_number || "—"}
-                      </td>
-                      <td className="px-3 py-2">
-                        {rec.callee_name || rec.callee_number || "—"}
-                      </td>
-                      <td className="px-3 py-2">
-                        {rec.owner_name ||
-                          rec.owner_id ||
-                          rec.extension_name ||
-                          "—"}
-                      </td>
-                      <td className="px-3 py-2">
-                        {rec.recording_type || rec.type || "—"}
-                      </td>
-                      <td className="px-3 py-2">
-                        {rec.duration ??
-                          rec.recording_duration ??
-                          "—"}
-                      </td>
-                      <td className="px-3 py-2">
-                        {rec.download_url ? (
-                          <a
-                            href={rec.download_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-sky-400 hover:underline mr-2"
-                          >
-                            Download
-                          </a>
-                        ) : null}
-                        {rec.playback_url ? (
-                          <a
-                            href={rec.playback_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-sky-400 hover:underline"
-                          >
-                            Play
-                          </a>
-                        ) : null}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
+               <thead className="bg-slate-900">
+  <tr className="text-xs text-slate-400 text-left">
+    <th className="px-3 py-2">Date / Time</th>
+    <th className="px-3 py-2">Direction</th>
+    <th className="px-3 py-2">Caller</th>
+    <th className="px-3 py-2">Callee</th>
+    <th className="px-3 py-2">Owner</th>
+    <th className="px-3 py-2">Site</th>
+    <th className="px-3 py-2">Duration (s)</th>
+    <th className="px-3 py-2">Type</th>
+    <th className="px-3 py-2">Actions</th>
+  </tr>
+</thead>
+<tbody>
+  {recordings.map((rec, idx) => {
+    const dt = rec.date_time
+      ? new Date(rec.date_time)
+      : rec.end_time
+      ? new Date(rec.end_time)
+      : null;
+
+    const dateDisplay = dt
+      ? dt.toLocaleString(undefined, {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "—";
+
+    const callerDisplay =
+      rec.caller_name && rec.caller_number
+        ? `${rec.caller_name} (${rec.caller_number})`
+        : rec.caller_name || rec.caller_number || "—";
+
+    const calleeDisplay =
+      rec.callee_name && rec.callee_number
+        ? `${rec.callee_name} (${rec.callee_number})`
+        : rec.callee_name || rec.callee_number || "—";
+
+    const ownerDisplay =
+      rec.owner?.name && rec.owner?.extension_number
+        ? `${rec.owner.name} (${rec.owner.extension_number})`
+        : rec.owner?.name || "—";
+
+    return (
+      <tr
+        key={rec.id || rec.call_id || idx}
+        className="border-t border-slate-800/80 hover:bg-slate-800/40"
+      >
+        <td className="px-3 py-2 whitespace-nowrap">{dateDisplay}</td>
+        <td className="px-3 py-2 capitalize">{rec.direction || "—"}</td>
+        <td className="px-3 py-2">{callerDisplay}</td>
+        <td className="px-3 py-2">{calleeDisplay}</td>
+        <td className="px-3 py-2">{ownerDisplay}</td>
+        <td className="px-3 py-2">{rec.site?.name || "—"}</td>
+        <td className="px-3 py-2">{rec.duration ?? "—"}</td>
+        <td className="px-3 py-2">{rec.recording_type || "—"}</td>
+        <td className="px-3 py-2">
+          {rec.download_url && (
+            <a
+              href={rec.download_url}
+              target="_blank"
+              rel="noreferrer"
+              className="text-sky-400 hover:underline mr-2"
+            >
+              Download
+            </a>
+          )}
+
+          {/* Future: link to call history view in your app */}
+          {rec.call_history_id && (
+            <button
+              className="text-xs text-slate-300 border border-slate-600 rounded px-1 py-0.5 hover:bg-slate-800"
+              onClick={() => {
+                // you can later wire this to open a side panel or navigate
+                console.debug("View call history", rec.call_history_id);
+              }}
+            >
+              Details
+            </button>
+          )}
+        </td>
+      </tr>
+    );
+  })}
+</tbody>
+
               </table>
             </div>
           )}
