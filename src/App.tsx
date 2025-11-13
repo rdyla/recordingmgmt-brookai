@@ -337,9 +337,6 @@ const App: React.FC = () => {
                               </a>
                             )}
 
-                            {rec.call_history_id && (
-                            
-                            )}
                           </td>
 
                         </tr>
