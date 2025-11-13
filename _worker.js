@@ -17,64 +17,41 @@ async function getZoomAccessToken(env) {
     return cachedToken;
   }
 
-  async function handleGetMeetingRecordings(req, env) {
-  try {
-    const url = new URL(req.url);
+ async function handleGetMeetingRecordings(req, env) {
+  // Minimal stub to prove routing & front-end integration
+  const now = new Date().toISOString();
 
-    const from = url.searchParams.get("from");
-    const to = url.searchParams.get("to");
-    const pageSize = url.searchParams.get("page_size") || "30";
-    const nextToken = url.searchParams.get("next_page_token") || "";
-
-    const params = new URLSearchParams();
-    if (from) params.set("from", from);
-    if (to) params.set("to", to);
-    params.set("page_size", pageSize);
-    if (nextToken) params.set("next_page_token", nextToken);
-
-    // You can tune these if you want, but these are nice defaults:
-    params.set("mc", "false");
-    params.set("trash", "false");
-    // params.set("trash_type", "meeting_recordings"); // optional
-
-    // 🔐 IMPORTANT: use the SAME token logic you use for phone recordings
-    // If your phone handler does: const token = await getZoomAccessToken(env);
-    // then this line is correct:
-    const token = await getZoomAccessToken(env);
-
-    // Decide which user to pull recordings for
-    // - You can set ZOOM_MEETINGS_USER_ID in wrangler.toml / dashboard
-    // - Or omit it and default to "me" (the user tied to the token)
-    const userId = env.ZOOM_MEETINGS_USER_ID || "me";
-
-    const zoomUrl = `https://api.zoom.us/v2/users/${encodeURIComponent(
-      userId
-    )}/recordings?${params.toString()}`;
-
-    const zoomRes = await fetch(zoomUrl, {
-      headers: {
-        Authorization: `Bearer ${token}`,
+  const fakeResponse = {
+    from: "2025-11-01",
+    to: "2025-11-13",
+    page_size: 30,
+    next_page_token: "",
+    meetings: [
+      {
+        uuid: "dummy-uuid",
+        id: 123456789,
+        topic: "Test Meeting (stub)",
+        start_time: now,
+        duration: 45,
+        host_id: "host-123",
+        host_email: "host@example.com",
+        recording_files: [
+          {
+            id: "file-1",
+            recording_start: now,
+            recording_end: now,
+            download_url: "https://example.com/download",
+            file_type: "MP4",
+          },
+        ],
       },
-    });
+    ],
+  };
 
-    const text = await zoomRes.text();
-
-    return new Response(text, {
-      status: zoomRes.status,
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-  } catch (err) {
-    console.error("Meeting recordings error", err);
-    return new Response(
-      JSON.stringify({
-        error: "Meeting recordings handler failed",
-        message: (err && err.message) || String(err),
-      }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
-    );
-  }
+  return new Response(JSON.stringify(fakeResponse), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
 
