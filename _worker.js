@@ -85,36 +85,100 @@ function json(status, obj) {
   });
 }
 
+async function handleDownloadRecording(req, env) {
+  const url = new URL(req.url);
+  const target = url.searchParams.get("url");
+
+  if (!target) {
+    return new Response(
+      JSON.stringify({ error: "Missing 'url' query parameter" }),
+      {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  }
+
+  let zoomUrl;
+  try {
+    zoomUrl = new URL(target);
+  } catch {
+    return new Response(JSON.stringify({ error: "Invalid URL" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  // Basic safety: only allow zoom.us phone recording downloads
+  if (
+    zoomUrl.hostname !== "zoom.us" ||
+    !zoomUrl.pathname.startsWith("/v2/phone/recording/download")
+  ) {
+    return new Response(JSON.stringify({ error: "Blocked URL" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  // Reuse whatever you use for the recordings list
+  const accessToken = await getZoomAccessToken(env); // <-- use your existing helper
+
+  const zoomRes = await fetch(zoomUrl.toString(), {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  // Stream back the file
+  const headers = new Headers();
+  const ct = zoomRes.headers.get("content-type");
+  const cd = zoomRes.headers.get("content-disposition");
+
+  if (ct) headers.set("Content-Type", ct);
+  if (cd) headers.set("Content-Disposition", cd);
+
+  return new Response(zoomRes.body, {
+    status: zoomRes.status,
+    headers,
+  });
+}
+
 export default {
   async fetch(req, env, ctx) {
     const url = new URL(req.url);
 
-    // API route for recordings
     if (url.pathname === "/api/phone/recordings" && req.method === "GET") {
-      try {
-        return await handleGetRecordings(req, env);
-      } catch (e) {
-        return json(500, { ok: false, error: String(e?.message || e) });
-      }
+      return handleGetRecordings(req, env); // existing
     }
 
-    // CORS preflight if you need it
-    if (url.pathname === "/api/phone/recordings" && req.method === "OPTIONS") {
+    if (
+      url.pathname === "/api/phone/recordings/download" &&
+      req.method === "GET"
+    ) {
+      return handleDownloadRecording(req, env);
+    }
+
+    if (
+      url.pathname === "/api/phone/recordings" &&
+      req.method === "OPTIONS"
+    ) {
+      // CORS preflight for the JSON endpoint
       return new Response(null, {
         status: 204,
         headers: {
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Allow-Methods": "GET, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type, Authorization"
-        }
+          "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        },
       });
     }
 
-    // Default: serve static assets (Vite build) if you’re using Pages+Workers
+    // ...then your ASSETS fallback etc.
     if (env.ASSETS) {
       return env.ASSETS.fetch(req);
     }
 
     return new Response("Recording Explorer backend", { status: 200 });
-  }
+  },
 };
+

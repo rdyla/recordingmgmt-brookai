@@ -328,9 +328,9 @@ const App: React.FC = () => {
                           <td className="px-3 py-2">
                             {rec.download_url && (
                               <a
-                                href={rec.download_url}
-                                target="_blank"
-                                rel="noreferrer"
+                                href={`/api/phone/recordings/download?url=${encodeURIComponent(
+                                  rec.download_url
+                                )}`}
                                 className="text-sky-400 hover:underline mr-2"
                               >
                                 Download
@@ -338,19 +338,10 @@ const App: React.FC = () => {
                             )}
 
                             {rec.call_history_id && (
-                              <button
-                                className="text-xs text-slate-300 border border-slate-600 rounded px-1 py-0.5 hover:bg-slate-800"
-                                onClick={() => {
-                                  console.debug(
-                                    "View call history",
-                                    rec.call_history_id
-                                  );
-                                }}
-                              >
-                                Details
-                              </button>
+                            
                             )}
                           </td>
+
                         </tr>
                       );
                     })}
