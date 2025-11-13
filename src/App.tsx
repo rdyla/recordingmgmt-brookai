@@ -50,9 +50,6 @@ const todayStr = new Date().toISOString().slice(0, 10);
 const App: React.FC = () => {
   const [from, setFrom] = useState(todayStr);
   const [to, setTo] = useState(todayStr);
-  const [ownerType, setOwnerType] = useState<
-    "all" | "extension" | "queue" | "auto_receptionist"
-  >("all");
   const [recordingType, setRecordingType] = useState<
     "Automatic" | "OnDemand" | "All"
   >("OnDemand");
@@ -78,14 +75,10 @@ const App: React.FC = () => {
       params.set("from", from);
       params.set("to", to);
       params.set("page_size", String(pageSize));
-      params.set("owner_type", ownerType);
       if (recordingType !== "All") {
         params.set("recording_type", recordingType);
       }
       params.set("query_date_type", queryDateType);
-      if (tokenOverride) {
-        params.set("next_page_token", tokenOverride);
-      }
 
       const res = await fetch(`/api/phone/recordings?${params.toString()}`);
       if (!res.ok) {
@@ -180,22 +173,6 @@ const App: React.FC = () => {
                 <option value="All">All</option>
                 <option value="Automatic">Automatic</option>
                 <option value="OnDemand">OnDemand</option>
-              </select>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-slate-400">Owner type</label>
-              <select
-                className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-sm"
-                value={ownerType}
-                onChange={(e) =>
-                  setOwnerType(e.target.value as typeof ownerType)
-                }
-              >
-                <option value="all">All</option>
-                <option value="extension">Extension</option>
-                <option value="queue">Queue</option>
-                <option value="auto_receptionist">Auto Receptionist</option>
               </select>
             </div>
 
