@@ -134,137 +134,130 @@ const App: React.FC = () => {
   const recordings: Recording[] = data?.recordings ?? [];
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-50 flex flex-col">
-      <header className="border-b border-slate-800 px-6 py-4">
-        <h1 className="text-xl font-semibold">
-          Zoom Phone Recording Explorer
-        </h1>
-        <p className="text-xs text-slate-400 mt-1">
-          {data?.from} → {data?.to}
-        </p>
+    <div className="app-page">
+      <header className="app-header">
+        <div className="app-header-inner">
+          <h1 className="app-title">Zoom Phone Recording Explorer</h1>
+          <p className="app-subtitle">
+            {data?.from} → {data?.to}
+          </p>
+        </div>
       </header>
 
-      <main className="flex-1 px-4 py-6">
-        <div className="max-w-5xl mx-auto space-y-4">
-          {/* Filters */}
-          <section className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-lg shadow-slate-950/40">
-  {/* Filters row */}
-  <div className="flex flex-wrap items-end gap-4">
-    <div className="flex flex-col gap-1 w-64">
-      <label className="text-xs text-slate-400">From</label>
-      <input
-        type="date"
-        className="block w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400 outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-        value={from}
-        onChange={(e) => setFrom(e.target.value)}
-      />
-    </div>
-
-    <div className="flex flex-col gap-1 w-64">
-      <label className="text-xs text-slate-400">To</label>
-      <input
-        type="date"
-        className="block w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400 outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-        value={to}
-        onChange={(e) => setTo(e.target.value)}
-      />
-    </div>
-
-    <div className="flex flex-col gap-1 w-64">
-      <label className="text-xs text-slate-400">Recording type</label>
-      <select
-        className="block w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-        value={recordingType}
-        onChange={(e) =>
-          setRecordingType(e.target.value as typeof recordingType)
-        }
-      >
-        <option value="All">All</option>
-        <option value="Automatic">Automatic</option>
-        <option value="OnDemand">OnDemand</option>
-      </select>
-    </div>
-
-    <div className="flex flex-col gap-1 w-64">
-      <label className="text-xs text-slate-400">Query date type</label>
-      <select
-        className="block w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-        value={queryDateType}
-        onChange={(e) =>
-          setQueryDateType(e.target.value as typeof queryDateType)
-        }
-      >
-        <option value="start_time">Start time</option>
-        <option value="created_time">Created time</option>
-      </select>
-    </div>
-
-    <div className="flex flex-col gap-1 w-32">
-      <label className="text-xs text-slate-400">Page size</label>
-      <input
-        type="number"
-        min={1}
-        max={300}
-        className="block w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400 outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-        value={pageSize}
-        onChange={(e) => setPageSize(Number(e.target.value) || 30)}
-      />
-    </div>
-  </div>
-
-  {/* Search + stats */}
-  <div className="flex items-center justify-between gap-2">
-    <button
-      onClick={handleSearch}
-      disabled={loading}
-      className="inline-flex items-center gap-2 bg-sky-600 hover:bg-sky-500 disabled:opacity-60 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg text-sm font-medium"
-    >
-      {loading ? "Loading…" : "Search"}
-    </button>
-
-    <div className="text-xs text-slate-400 flex items-center gap-3">
-      <span>
-        Records:{" "}
-        {typeof data?.total_records === "number"
-          ? data.total_records
-          : recordings.length}
-      </span>
-      {currentToken && <span>Page token: {currentToken}</span>}
-    </div>
-  </div>
-
-  {error && (
-    <div className="text-xs text-red-400 bg-red-950/40 border border-red-800 rounded-lg px-3 py-2">
-      Error: {error}
-    </div>
-  )}
-</section>
-
-
-          {/* Table */}
-          <section className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg shadow-slate-950/40">
-            {loading && !recordings.length ? (
-              <div className="text-sm text-slate-400">
-                Loading recordings…
+      <main className="app-main">
+        <div className="app-main-inner">
+          {/* Filters card */}
+          <section className="app-card">
+            <div className="filters-row">
+              <div className="filter-group">
+                <label className="filter-label">From</label>
+                <input
+                  type="date"
+                  className="form-control"
+                  value={from}
+                  onChange={(e) => setFrom(e.target.value)}
+                />
               </div>
+
+              <div className="filter-group">
+                <label className="filter-label">To</label>
+                <input
+                  type="date"
+                  className="form-control"
+                  value={to}
+                  onChange={(e) => setTo(e.target.value)}
+                />
+              </div>
+
+              <div className="filter-group">
+                <label className="filter-label">Recording type</label>
+                <select
+                  className="form-control"
+                  value={recordingType}
+                  onChange={(e) =>
+                    setRecordingType(e.target.value as typeof recordingType)
+                  }
+                >
+                  <option value="All">All</option>
+                  <option value="Automatic">Automatic</option>
+                  <option value="OnDemand">OnDemand</option>
+                </select>
+              </div>
+
+              <div className="filter-group">
+                <label className="filter-label">Query date type</label>
+                <select
+                  className="form-control"
+                  value={queryDateType}
+                  onChange={(e) =>
+                    setQueryDateType(e.target.value as typeof queryDateType)
+                  }
+                >
+                  <option value="start_time">Start time</option>
+                  <option value="created_time">Created time</option>
+                </select>
+              </div>
+
+              <div className="filter-group small">
+                <label className="filter-label">Page size</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={300}
+                  className="form-control"
+                  value={pageSize}
+                  onChange={(e) =>
+                    setPageSize(Number(e.target.value) || 30)
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="filter-actions">
+              <button
+                onClick={handleSearch}
+                disabled={loading}
+                className="btn-primary"
+              >
+                {loading ? "Loading…" : "Search"}
+              </button>
+
+              <div className="stats">
+                <span>
+                  Records:{" "}
+                  {typeof data?.total_records === "number"
+                    ? data.total_records
+                    : recordings.length}
+                </span>
+                {currentToken && <span>Page token: {currentToken}</span>}
+              </div>
+            </div>
+
+            {error && <div className="error-banner">Error: {error}</div>}
+          </section>
+
+          {/* Table card */}
+          <section className="app-card">
+            {loading && !recordings.length ? (
+              <div className="rec-table-empty">Loading recordings…</div>
             ) : !recordings.length ? (
-              <div className="text-sm text-slate-400">
+              <div className="rec-table-empty">
                 No recordings found for this range.
               </div>
             ) : (
-              <div className="overflow-auto">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-slate-900">
-                    <tr className="text-xs text-slate-400 text-left">
-                      <th className="px-3 py-2">Date / Time</th>
-                      <th className="px-3 py-2">Direction</th>
-                      <th className="px-3 py-2">Caller</th>
-                      <th className="px-3 py-2">Callee</th>
-                      <th className="px-3 py-2">Owner</th>
-                      <th className="px-3 py-2">Site</th>
-                      <th className="px-3 py-2">Duration (s)</th>
-                      <th className="px-3 py-2">Type</th>
-                      <th className="px-3 py-2">Actions</th>
+              <div className="table-wrapper">
+                <table className="rec-table">
+                  <thead>
+                    <tr>
+                      <th>Date / Time</th>
+                      <th>Direction</th>
+                      <th>Caller</th>
+                      <th>Callee</th>
+                      <th>Owner</th>
+                      <th>Site</th>
+                      <th>Duration (s)</th>
+                      <th>Type</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -303,27 +296,19 @@ const App: React.FC = () => {
                       return (
                         <tr
                           key={rec.id || rec.call_id || idx}
-                          className="border-t border-slate-800/80 hover:bg-slate-800/40"
+                          className="rec-row"
                         >
-                          <td className="px-3 py-2 whitespace-nowrap">
-                            {dateDisplay}
-                          </td>
-                          <td className="px-3 py-2 capitalize">
+                          <td>{dateDisplay}</td>
+                          <td style={{ textTransform: "capitalize" }}>
                             {rec.direction || "—"}
                           </td>
-                          <td className="px-3 py-2">{callerDisplay}</td>
-                          <td className="px-3 py-2">{calleeDisplay}</td>
-                          <td className="px-3 py-2">{ownerDisplay}</td>
-                          <td className="px-3 py-2">
-                            {rec.site?.name || "—"}
-                          </td>
-                          <td className="px-3 py-2">
-                            {rec.duration ?? "—"}
-                          </td>
-                          <td className="px-3 py-2">
-                            {rec.recording_type || "—"}
-                          </td>
-                          <td className="px-3 py-2">
+                          <td>{callerDisplay}</td>
+                          <td>{calleeDisplay}</td>
+                          <td>{ownerDisplay}</td>
+                          <td>{rec.site?.name || "—"}</td>
+                          <td>{rec.duration ?? "—"}</td>
+                          <td>{rec.recording_type || "—"}</td>
+                          <td>
                             {rec.download_url && (
                               <a
                                 href={`/api/phone/recordings/download?url=${encodeURIComponent(
@@ -337,7 +322,7 @@ const App: React.FC = () => {
 
                             {rec.call_history_id && (
                               <button
-                                className="text-xs text-slate-300 border border-slate-600 rounded px-1 py-0.5 hover:bg-slate-800"
+                                className="pager-btn"
                                 onClick={() => {
                                   alert(
                                     "Details view coming soon for this recording."
@@ -356,19 +341,19 @@ const App: React.FC = () => {
               </div>
             )}
 
-            <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
-              <div className="flex gap-2">
+            <div className="pager">
+              <div className="pager-buttons">
                 <button
                   onClick={handlePrev}
                   disabled={!prevTokens.length || loading}
-                  className="px-2 py-1 border border-slate-700 rounded-lg disabled:opacity-50"
+                  className="pager-btn"
                 >
                   Previous
                 </button>
                 <button
                   onClick={handleNext}
                   disabled={!nextToken || !nextToken.length || loading}
-                  className="px-2 py-1 border border-slate-700 rounded-lg disabled:opacity-50"
+                  className="pager-btn"
                 >
                   Next
                 </button>
