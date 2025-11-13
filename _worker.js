@@ -18,39 +18,65 @@ async function getZoomAccessToken(env) {
   }
 
   async function handleGetMeetingRecordings(req, env) {
-  const url = new URL(req.url);
+  try {
+    const url = new URL(req.url);
 
-  const from = url.searchParams.get("from");
-  const to = url.searchParams.get("to");
-  const pageSize = url.searchParams.get("page_size") || "30";
-  const nextToken = url.searchParams.get("next_page_token") || "";
+    const from = url.searchParams.get("from");
+    const to = url.searchParams.get("to");
+    const pageSize = url.searchParams.get("page_size") || "30";
+    const nextToken = url.searchParams.get("next_page_token") || "";
 
-  const params = new URLSearchParams();
-  if (from) params.set("from", from);
-  if (to) params.set("to", to);
-  params.set("page_size", pageSize);
-  if (nextToken) params.set("next_page_token", nextToken);
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    params.set("page_size", pageSize);
+    if (nextToken) params.set("next_page_token", nextToken);
 
-  const accessToken = await getZoomAccessToken(env);
-  const accountId = env.ZOOM_ACCOUNT_ID; // <-- set this in your env
+    // You can tune these if you want, but these are nice defaults:
+    params.set("mc", "false");
+    params.set("trash", "false");
+    // params.set("trash_type", "meeting_recordings"); // optional
 
-  const zoomRes = await fetch(
-    `https://api.zoom.us/v2/accounts/${accountId}/recordings?${params.toString()}`,
-    {
+    // 🔐 IMPORTANT: use the SAME token logic you use for phone recordings
+    // If your phone handler does: const token = await getZoomAccessToken(env);
+    // then this line is correct:
+    const token = await getZoomAccessToken(env);
+
+    // Decide which user to pull recordings for
+    // - You can set ZOOM_MEETINGS_USER_ID in wrangler.toml / dashboard
+    // - Or omit it and default to "me" (the user tied to the token)
+    const userId = env.ZOOM_MEETINGS_USER_ID || "me";
+
+    const zoomUrl = `https://api.zoom.us/v2/users/${encodeURIComponent(
+      userId
+    )}/recordings?${params.toString()}`;
+
+    const zoomRes = await fetch(zoomUrl, {
       headers: {
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${token}`,
       },
-    }
-  );
+    });
 
-  const text = await zoomRes.text();
-  return new Response(text, {
-    status: zoomRes.status,
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
+    const text = await zoomRes.text();
+
+    return new Response(text, {
+      status: zoomRes.status,
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+  } catch (err) {
+    console.error("Meeting recordings error", err);
+    return new Response(
+      JSON.stringify({
+        error: "Meeting recordings handler failed",
+        message: (err && err.message) || String(err),
+      }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
 }
+
 
   const basicAuth = btoa(`${env.ZOOM_CLIENT_ID}:${env.ZOOM_CLIENT_SECRET}`);
   const url = new URL(ZOOM_OAUTH_TOKEN_URL);
