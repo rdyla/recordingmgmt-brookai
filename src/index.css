@@ -163,6 +163,38 @@ body {
   padding: 6px 10px;
 }
 
+/* ---- Delete bar styles ---- */
+.delete-progress-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: 0.75rem;
+}
+
+.delete-progress-bar {
+  position: relative;
+  width: 160px;
+  height: 6px;
+  border-radius: 999px;
+  background-color: rgba(148, 163, 184, 0.4); /* slate-400-ish */
+  overflow: hidden;
+}
+
+.delete-progress-bar-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: 999px;
+  background-color: #0ea5e9; /* tailwind sky-500-ish */
+  transition: width 0.15s ease-out;
+}
+
+.delete-progress-text {
+  font-size: 0.75rem;
+  color: #64748b; /* slate-500-ish */
+}
+
 /* ---- Table ---- */
 
 .table-wrapper {

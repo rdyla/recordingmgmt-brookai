@@ -686,9 +686,21 @@ const App: React.FC = () => {
                   </>
                 )}
                 {deleting && deleteProgress && (
-                  <span className="delete-progress">
-                    Deleting {deleteProgress.done}/{deleteProgress.total}…
-                  </span>
+                  <div className="delete-progress-wrapper">
+                    <div className="delete-progress-bar">
+                      <div
+                        className="delete-progress-bar-fill"
+                        style={{
+                          width: `${
+                            (deleteProgress.done / Math.max(deleteProgress.total, 1)) * 100
+                          }%`,
+                        }}
+                      />
+                    </div>
+                    <span className="delete-progress-text">
+                      Deleting {deleteProgress.done}/{deleteProgress.total}…
+                    </span>
+                  </div>
                 )}
               </div>
             </div>
