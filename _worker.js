@@ -77,15 +77,18 @@ async function handleGetRecordings(req, env) {
 
 /* -------------------- MEETING RECORDINGS (USER-AGGREGATED) -------------------- */
 
+/* -------------------- MEETING RECORDINGS (USER-AGGREGATED + DEBUG) -------------------- */
+
 async function handleGetMeetingRecordings(req, env) {
   try {
     const url = new URL(req.url);
-    const from = url.searchParams.get("from") || "";
-    const to   = url.searchParams.get("to")   || "";
+    const from  = url.searchParams.get("from")  || "";
+    const to    = url.searchParams.get("to")    || "";
+    const debug = url.searchParams.get("debug") || ""; // "users" or "user-recordings"
 
     const token = await getZoomAccessToken(env);
 
-    // 1) Get ALL active users (handle pagination)
+    // 1) Get ALL active users (with pagination)
     const users = [];
     let nextPageToken = "";
 
@@ -123,6 +126,36 @@ async function handleGetMeetingRecordings(req, env) {
       nextPageToken = usersData.next_page_token || "";
     } while (nextPageToken);
 
+    // 🔍 DEBUG MODE: just show the users we got from Zoom
+    if (debug === "users") {
+      return new Response(
+        JSON.stringify(
+          {
+            from,
+            to,
+            total_users: users.length,
+            users: users.map(u => ({
+              id: u.id,
+              email: u.email,
+              first_name: u.first_name,
+              last_name: u.last_name,
+              type: u.type,
+              status: u.status,
+            })),
+          },
+          null,
+          2
+        ),
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
+        }
+      );
+    }
+
     if (!users.length) {
       return new Response(
         JSON.stringify({
@@ -137,7 +170,7 @@ async function handleGetMeetingRecordings(req, env) {
       );
     }
 
-    // 2) Helper for each user's recordings URL
+    // 2) Helper for per-user recordings URL
     const buildRecordingsUrl = (userId) => {
       const u = new URL(`${ZOOM_API_BASE}/users/${encodeURIComponent(userId)}/recordings`);
       u.searchParams.set("page_size", "50");
@@ -148,8 +181,9 @@ async function handleGetMeetingRecordings(req, env) {
 
     const meetings = [];
     const errors = [];
+    const perUserSummary = []; // only used in debug=user-recordings
 
-    // 3) Throttled concurrency so we don’t slam the API
+    // 3) Throttled concurrency
     const concurrency = 5;
     let idx = 0;
 
@@ -167,6 +201,7 @@ async function handleGetMeetingRecordings(req, env) {
 
           const text = await res.text();
 
+          let data;
           if (!res.ok) {
             errors.push({
               userId: user.id,
@@ -177,7 +212,6 @@ async function handleGetMeetingRecordings(req, env) {
             continue;
           }
 
-          let data;
           try {
             data = JSON.parse(text);
           } catch {
@@ -191,14 +225,22 @@ async function handleGetMeetingRecordings(req, env) {
             continue;
           }
 
-          if (Array.isArray(data.meetings)) {
-            for (const m of data.meetings) {
-              meetings.push({
-                ...m,
-                owner_id: user.id,
-                owner_email: user.email,
-              });
-            }
+          const userMeetings = Array.isArray(data.meetings) ? data.meetings : [];
+
+          // summary for debug mode
+          perUserSummary.push({
+            userId: user.id,
+            userEmail: user.email,
+            meetingCount: userMeetings.length,
+          });
+
+          // normal aggregated list
+          for (const m of userMeetings) {
+            meetings.push({
+              ...m,
+              owner_id: user.id,
+              owner_email: user.email,
+            });
           }
         } catch (e) {
           errors.push({
@@ -214,12 +256,36 @@ async function handleGetMeetingRecordings(req, env) {
       Array.from({ length: Math.min(concurrency, users.length) }, () => worker())
     );
 
-    // 4) Response shaped *similar* to Zoom’s account recordings endpoint
+    // 🔍 DEBUG MODE: return per-user meeting counts instead of full meeting list
+    if (debug === "user-recordings") {
+      return new Response(
+        JSON.stringify(
+          {
+            from,
+            to,
+            total_users: users.length,
+            per_user: perUserSummary,
+            errors: errors.length ? errors : undefined,
+          },
+          null,
+          2
+        ),
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
+        }
+      );
+    }
+
+    // 4) Normal aggregated response
     const respBody = {
       from,
       to,
-      page_size: meetings.length,       // not "real" paging anymore, just count
-      next_page_token: "",             // no cross-user paging; everything in one shot
+      page_size: meetings.length,
+      next_page_token: "",
       meetings,
       total_users: users.length,
       errors: errors.length ? errors : undefined,
@@ -243,6 +309,7 @@ async function handleGetMeetingRecordings(req, env) {
     );
   }
 }
+
 
 /* -------------------- MEETING IDENTITY -------------------- */
 
