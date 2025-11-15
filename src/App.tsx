@@ -295,7 +295,8 @@ const App: React.FC = () => {
       throw new Error(`HTTP ${res.status}: ${text}`);
     }
 
-    const api: any = await res.json();
+    // ⬇️ This line is the fix: use MeetingApiResponse instead of any
+    const api: MeetingApiResponse = await res.json();
 
     const recs: Recording[] = [];
     for (const m of api.meetings ?? []) {
