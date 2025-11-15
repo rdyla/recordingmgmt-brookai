@@ -406,6 +406,25 @@ const App: React.FC = () => {
     setSelectedKeys(new Set());
   };
 
+  if (authed === false) {
+  return (
+    <div className="app-page auth-page">
+      <div className="auth-card">
+        <h1 className="app-title">Zoom Recording Explorer</h1>
+        <p className="app-subtitle">
+          Sign in with your Zoom account to continue.
+        </p>
+        <a href="/zoom/login" className="btn-primary" style={{ marginTop: "1.5rem" }}>
+          Sign in with Zoom
+        </a>
+        <p className="auth-help">
+          You’ll be redirected to Zoom, then back here once authenticated.
+        </p>
+      </div>
+    </div>
+  );
+}
+
   const handleBulkDelete = async () => {
     if (!filteredRecordings.length || !selectedCount) return;
 

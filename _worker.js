@@ -604,6 +604,154 @@ function json(status, obj) {
   });
 }
 
+async function handleZoomLogin(req, env) {
+  const clientId = env.ZOOM_OAUTH_CLIENT_ID;
+  const redirectUri =
+    env.ZOOM_OAUTH_REDIRECT_URI ||
+    "https://recordingmgmt.itcontact-521.workers.dev/zoom/callback";
+
+  if (!clientId) {
+    return json(500, { error: "Missing ZOOM_OAUTH_CLIENT_ID" });
+  }
+
+  const state = crypto.randomUUID(); // optionally store in KV for CSRF
+
+  const params = new URLSearchParams();
+  params.set("response_type", "code");
+  params.set("client_id", clientId);
+  params.set("redirect_uri", redirectUri);
+  // minimum scopes just to identify the user; you can add more later if needed
+  params.set("scope", "user:read");
+  params.set("state", state);
+
+  const authUrl = `https://zoom.us/oauth/authorize?${params.toString()}`;
+  return Response.redirect(authUrl, 302);
+}
+
+async function handleZoomCallback(req, env) {
+  const url = new URL(req.url);
+  const code = url.searchParams.get("code");
+  const err = url.searchParams.get("error");
+
+  if (err) {
+    return new Response(`Zoom auth error: ${err}`, { status: 400 });
+  }
+  if (!code) {
+    return new Response("Missing code", { status: 400 });
+  }
+
+  const clientId = env.ZOOM_OAUTH_CLIENT_ID;
+  const clientSecret = env.ZOOM_OAUTH_CLIENT_SECRET;
+  const redirectUri =
+    env.ZOOM_OAUTH_REDIRECT_URI ||
+    "https://recordingmgmt.itcontact-521.workers.dev/zoom/callback";
+
+  if (!clientId || !clientSecret) {
+    return new Response("Missing Zoom OAuth client config", { status: 500 });
+  }
+
+  // Exchange code for tokens
+  const basicAuth = btoa(`${clientId}:${clientSecret}`);
+
+  const tokenRes = await fetch("https://zoom.us/oauth/token", {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${basicAuth}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: redirectUri,
+    }).toString(),
+  });
+
+  const tokenText = await tokenRes.text();
+  if (!tokenRes.ok) {
+    console.error("Zoom token exchange failed", tokenRes.status, tokenText);
+    return new Response("Zoom token exchange failed", { status: 500 });
+  }
+
+  let tokenJson;
+  try {
+    tokenJson = JSON.parse(tokenText);
+  } catch {
+    console.error("Zoom token JSON parse failed", tokenText);
+    return new Response("Bad Zoom token response", { status: 500 });
+  }
+
+  const accessToken = tokenJson.access_token;
+  if (!accessToken) {
+    console.error("No access_token in Zoom response", tokenJson);
+    return new Response("No access_token from Zoom", { status: 500 });
+  }
+
+  // Fetch current user profile
+  const meRes = await fetch("https://api.zoom.us/v2/users/me", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  const meText = await meRes.text();
+  if (!meRes.ok) {
+    console.error("Zoom /users/me failed", meRes.status, meText);
+    return new Response("Zoom /users/me failed", { status: 500 });
+  }
+
+  let me;
+  try {
+    me = JSON.parse(meText);
+  } catch {
+    console.error("Zoom /users/me JSON parse failed", meText);
+    return new Response("Bad /users/me response", { status: 500 });
+  }
+
+  const email = (me.email || "").toLowerCase();
+  const zoomUserId = me.id;
+
+  if (!email || !zoomUserId) {
+    console.error("Missing email or id from Zoom user", me);
+    return new Response("Bad Zoom user profile", { status: 500 });
+  }
+
+  // Optional: restrict by domain
+  const allowedDomains = (env.ZOOM_ALLOWED_EMAIL_DOMAINS || "")
+    .split(",")
+    .map((d) => d.trim().toLowerCase())
+    .filter(Boolean);
+
+  if (
+    allowedDomains.length > 0 &&
+    !allowedDomains.some((d) => email.endsWith(`@${d}`))
+  ) {
+    console.error("Zoom user email not allowed", email, allowedDomains);
+    return new Response("Unauthorized domain", { status: 403 });
+  }
+
+  // Create session (reuse AUTH_SESSIONS)
+  const sid = crypto.randomUUID();
+  const ttlSeconds = 60 * 60 * 8;
+
+  await env.AUTH_SESSIONS.put(
+    `sess:${sid}`,
+    JSON.stringify({
+      email,
+      zoomUserId,
+      zoomAccessToken: accessToken, // only if you want per-user token; else omit
+    }),
+    { expirationTtl: ttlSeconds }
+  );
+
+  const cookie = makeSessionCookie(sid, ttlSeconds);
+
+  return new Response(null, {
+    status: 302,
+    headers: {
+      "Set-Cookie": cookie,
+      Location: "/", // back to app
+    },
+  });
+}
+
 /* -------------------- ROUTER -------------------- */
 
 export default {
@@ -638,6 +786,17 @@ export default {
     // Meeting identity
     if (url.pathname === "/api/meeting/identity" && req.method === "GET") {
       return handleGetMeetingIdentity(req, env);
+    }
+
+    if (url.pathname === "/zoom/login") {
+    return handleZoomLogin(req, env);
+    }
+    if (url.pathname === "/zoom/callback") {
+    return handleZoomCallback(req, env);
+    }
+    if (url.pathname === "/api/auth/me") {
+    // reuse your requireAuth() + return email, zoomUserId, etc.
+    return handleAuthMe(req, env);
     }
 
     // Asset serving (your React UI)
