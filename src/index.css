@@ -105,6 +105,26 @@ body {
   color: #9ca3af;
 }
 
+/* Date picker styling */
+.form-control[type="date"],
+input[type="date"].form-control {
+  background-color: #020617;                  /* slate-950 */
+  color: #e5e7eb;                             /* slate-200 */
+  border: 1px solid #1e293b;                  /* slate-800 */
+  border-radius: 0.375rem;
+  padding: 0.35rem 0.5rem;
+}
+
+/* Make the calendar icon visible in dark mode (WebKit) */
+.form-control[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}
+
+/* Firefox tweak */
+.form-control[type="date"]::-moz-focus-inner {
+  border: 0;
+}
 .form-control:focus {
   outline: none;
   border-color: #0ea5e9;
@@ -236,6 +256,27 @@ body {
 .rec-table-empty {
   font-size: 13px;
   color: #9ca3af;
+}
+
+/* Expand / collapse group toggle */
+.group-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-right: 0.5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.9); /* slate-400 */
+  background: rgba(15, 23, 42, 0.85);         /* slate-900-ish */
+  color: #e5e7eb;                             /* text-slate-200 */
+  font-size: 0.8rem;
+}
+
+.group-toggle:hover {
+  background: rgba(30, 64, 175, 0.95);        /* indigo-ish */
+  border-color: #38bdf8;                      /* sky-400 */
+  color: #f9fafb;
 }
 
 /* ---- Pager ---- */
