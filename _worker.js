@@ -678,8 +678,6 @@ async function handleDownloadRecording(req, env) {
 
 /* -------------------- DOWNLOAD PROXY (MEETING) -------------------- */
 
-/* -------------------- DOWNLOAD PROXY (MEETING) -------------------- */
-
 async function handleDownloadMeetingRecording(req, env) {
   const url = new URL(req.url);
   const target = url.searchParams.get("url");
@@ -695,35 +693,33 @@ async function handleDownloadMeetingRecording(req, env) {
     return json(400, { error: "Invalid URL" });
   }
 
-  // Basic safety: only allow Zoom's recording download/play URLs
-  if (
-    !zoomUrl.hostname.endsWith("zoom.us") ||
-    (!zoomUrl.pathname.startsWith("/rec/download") &&
-      !zoomUrl.pathname.startsWith("/rec/play"))
-  ) {
+  // Safety: only allow Zoom domains
+  if (!zoomUrl.hostname.endsWith("zoom.us")) {
     return json(400, { error: "Blocked URL" });
   }
 
-  // Get an access token from Zoom using the S2S app
-  const token = await getZoomAccessToken(env);
-
-  // For meeting recording download URLs, Zoom expects access_token as a query param
-  if (!zoomUrl.searchParams.has("access_token")) {
-    zoomUrl.searchParams.set("access_token", token);
-  }
-
+  // At this point, zoomUrl already contains Zoom's own access_token etc.
+  // We don't add headers or modify the query; we just fetch it server-side.
   const zoomRes = await fetch(zoomUrl.toString(), {
     method: "GET",
   });
 
+  const status = zoomRes.status;
+  const ct = zoomRes.headers.get("content-type") || "";
+  const cd = zoomRes.headers.get("content-disposition") || "";
+
+  console.log("MEETING DOWNLOAD", {
+    url: zoomUrl.toString(),
+    status,
+    contentType: ct,
+  });
+
   const headers = new Headers();
-  const ct = zoomRes.headers.get("content-type");
   if (ct) headers.set("Content-Type", ct);
-  const cd = zoomRes.headers.get("content-disposition");
   if (cd) headers.set("Content-Disposition", cd);
 
   return new Response(zoomRes.body, {
-    status: zoomRes.status,
+    status,
     headers,
   });
 }
