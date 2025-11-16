@@ -9,6 +9,87 @@ const ZOOM_OAUTH_TOKEN_URL = "https://zoom.us/oauth/token";
 let cachedToken = null;
 let cachedTokenExp = 0;
 
+/* ---- Helpers ---- */
+// --- Host cache + helper lookups -----------------------------------------
+const hostCache = new Map();
+
+/**
+ * Fetch basic info for a Zoom user by host_id and cache it.
+ * Returns { name, email }.
+ */
+async function getHostInfo(hostId, accessToken) {
+  if (!hostId) {
+    return { name: "Unknown", email: "" };
+  }
+
+  // Cache hit
+  if (hostCache.has(hostId)) {
+    return hostCache.get(hostId);
+  }
+
+  try {
+    const res = await fetch(`https://api.zoom.us/v2/users/${encodeURIComponent(hostId)}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!res.ok) {
+      // For example, missing user:read scopes, deleted users, etc.
+      // Don't throw – just fallback to Unknown.
+      const text = await res.text().catch(() => "");
+      console.log("getHostInfo non-OK", res.status, text);
+      const fallback = { name: "Unknown", email: "" };
+      hostCache.set(hostId, fallback);
+      return fallback;
+    }
+
+    const data = await res.json();
+
+    const name = `${data.first_name ?? ""} ${data.last_name ?? ""}`.trim() || "Unknown";
+    const email = data.email || "";
+
+    const host = { name, email };
+    hostCache.set(hostId, host);
+    return host;
+  } catch (e) {
+    console.log("getHostInfo error", e && e.message ? e.message : e);
+    const fallback = { name: "Unknown", email: "" };
+    hostCache.set(hostId, fallback);
+    return fallback;
+  }
+}
+
+/**
+ * Attach hostName + hostEmail to each meeting record in the API response.
+ * Expects an array of `meeting` objects from Zoom's cloud recording list.
+ */
+async function attachHostsToRecordings(meetings, accessToken) {
+  if (!Array.isArray(meetings) || meetings.length === 0) return [];
+
+  // Collect unique host_ids to avoid N+1 spam
+  const uniqueHostIds = [...new Set(meetings.map(m => m.host_id).filter(Boolean))];
+
+  // Pre-warm cache (parallel fetch)
+  await Promise.all(
+    uniqueHostIds.map(id => getHostInfo(id, accessToken))
+  );
+
+  // Attach host info
+  return Promise.all(
+    meetings.map(async (m) => {
+      const host = await getHostInfo(m.host_id, accessToken);
+      return {
+        ...m,
+        hostName: host.name,
+        hostEmail: host.email,
+      };
+    })
+  );
+}
+
 async function getZoomAccessToken(env) {
   const now = Date.now();
   if (cachedToken && now < cachedTokenExp - 30_000) {
@@ -228,6 +309,8 @@ async function handleDeleteMeetingRecording(req, env) {
 
 /* -------------------- MEETING RECORDINGS (USER-AGGREGATED, SEARCHABLE) -------------------- */
 
+/* -------------------- MEETING RECORDINGS (USER-AGGREGATED, SEARCHABLE) -------------------- */
+
 async function handleGetMeetingRecordings(req, env) {
   try {
     const url = new URL(req.url);
@@ -379,6 +462,9 @@ async function handleGetMeetingRecordings(req, env) {
 
           const userMeetings = Array.isArray(data.meetings) ? data.meetings : [];
 
+          const ownerName =
+            `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim() || user.email || "Unknown";
+
           perUserSummary.push({
             userId: user.id,
             userEmail: user.email,
@@ -404,8 +490,11 @@ async function handleGetMeetingRecordings(req, env) {
               auto_delete_date: m.auto_delete_date,
               recording_play_passcode: m.recording_play_passcode,
 
+              // OWNER (from /users list)
               owner_email: user.email,
+              owner_name: ownerName,
 
+              // Primary file info
               primary_file_type: primary?.file_type || null,
               primary_file_extension: primary?.file_extension || null,
 
@@ -460,8 +549,11 @@ async function handleGetMeetingRecordings(req, env) {
       );
     }
 
+    // 3.5) Enrich with hostName + hostEmail based on host_id
+    const meetingsWithHosts = await attachHostsToRecordings(meetings, token);
+
     // 4) Apply backend filters if needed (UI also filters)
-    let filtered = meetings;
+    let filtered = meetingsWithHosts;
 
     if (ownerFilter) {
       filtered = filtered.filter((m) =>
@@ -477,7 +569,14 @@ async function handleGetMeetingRecordings(req, env) {
 
     if (q) {
       filtered = filtered.filter((m) => {
-        const bag = [m.topic || "", m.owner_email || "", m.host_id || ""].join(" ");
+        const bag = [
+          m.topic || "",
+          m.owner_email || "",
+          m.owner_name || "",
+          m.host_id || "",
+          m.hostName || "",
+          m.hostEmail || "",
+        ].join(" ");
         return bag.toLowerCase().includes(q);
       });
     }
