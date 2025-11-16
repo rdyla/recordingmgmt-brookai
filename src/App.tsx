@@ -41,6 +41,9 @@ type Recording = {
   end_time?: string;
   disclaimer_status?: number;
 
+  // size (bytes) – phone + meetings
+  file_size?: number;
+
   // extras
   source?: RecordingSource;
   topic?: string;
@@ -66,6 +69,7 @@ type MeetingRecordingFile = {
   recording_end?: string;
   download_url?: string;
   file_type?: string;
+  file_size?: number;
 };
 
 type MeetingItem = {
@@ -96,6 +100,16 @@ const todayStr = new Date().toISOString().slice(0, 10);
 
 // small helper to safely string-ify values
 const S = (v: unknown) => (v == null ? "" : String(v));
+
+const formatBytes = (bytes?: number | null): string => {
+  if (!bytes || bytes <= 0) return "—";
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${kb.toFixed(1)} KB`;
+  const mb = kb / 1024;
+  if (mb < 1024) return `${mb.toFixed(1)} MB`;
+  const gb = mb / 1024;
+  return `${gb.toFixed(2)} GB`;
+};
 
 /** Demo mode: enabled via ?demo=1 in the URL */
 const useInitialDemoMode = (): boolean => {
@@ -211,6 +225,7 @@ function generateDemoRecordings(from?: string, to?: string): Recording[] {
       },
       site,
       source: "phone",
+      file_size: undefined, // demo: we can leave undefined or generate fake sizes if desired
     });
   }
 
@@ -293,7 +308,7 @@ const App: React.FC = () => {
     return { api, recs };
   };
 
-    const fetchMeetingPage = async (tokenOverride: string | null) => {
+  const fetchMeetingPage = async (tokenOverride: string | null) => {
     const params = new URLSearchParams();
     params.set("from", from);
     params.set("to", to);
@@ -354,6 +369,10 @@ const App: React.FC = () => {
           duration: m.duration ?? 0,
           recording_type: f.file_type || "Recording",
           download_url: f.download_url,
+
+          // Size in bytes (from worker / Zoom)
+          file_size:
+            typeof f.file_size === "number" ? f.file_size : undefined,
 
           // Show topic as the "primary" label
           caller_name: m.topic,
@@ -785,6 +804,15 @@ const App: React.FC = () => {
     a.ownerLabel.localeCompare(b.ownerLabel)
   );
 
+  // Collapse / expand all groups on the current page
+  const collapseAllGroups = () => {
+    setCollapsedGroups(new Set(ownerGroups.map((g) => g.key)));
+  };
+
+  const expandAllGroups = () => {
+    setCollapsedGroups(new Set());
+  };
+
   const isGroupCollapsed = (groupKey: string) => collapsedGroups.has(groupKey);
 
   const toggleGroupCollapse = (groupKey: string) => {
@@ -1018,6 +1046,26 @@ const App: React.FC = () => {
                     </span>
                   </div>
                 )}
+
+                {/* Group expand/collapse */}
+                {ownerGroups.length > 0 && (
+                  <>
+                    <button
+                      className="pager-btn"
+                      onClick={expandAllGroups}
+                      disabled={deleting}
+                    >
+                      Expand all groups
+                    </button>
+                    <button
+                      className="pager-btn"
+                      onClick={collapseAllGroups}
+                      disabled={deleting}
+                    >
+                      Collapse all groups
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 
@@ -1047,6 +1095,7 @@ const App: React.FC = () => {
                       <th>Secondary</th>
                       <th>Owner / Host</th>
                       <th>Site</th>
+                      <th>Size</th>
                       <th>Duration (s)</th>
                       <th>Type</th>
                       <th>Actions</th>
@@ -1078,7 +1127,7 @@ const App: React.FC = () => {
                                 }
                               />
                             </td>
-                            <td colSpan={9}>
+                            <td colSpan={10}>
                               <button
                                 type="button"
                                 className="group-toggle"
@@ -1150,6 +1199,8 @@ const App: React.FC = () => {
                                 ? "Meeting"
                                 : "Phone";
 
+                              const sizeDisplay = formatBytes(rec.file_size);
+
                               return (
                                 <tr key={key} className="rec-row">
                                   <td>
@@ -1167,6 +1218,7 @@ const App: React.FC = () => {
                                   <td>{secondary}</td>
                                   <td>{ownerDisplay}</td>
                                   <td>{siteName}</td>
+                                  <td>{sizeDisplay}</td>
                                   <td>{rec.duration ?? "—"}</td>
                                   <td>{rec.recording_type || "—"}</td>
                                   <td>
