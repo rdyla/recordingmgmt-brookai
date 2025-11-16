@@ -41,7 +41,7 @@ type Recording = {
   end_time?: string;
   disclaimer_status?: number;
 
-  // size (bytes) – phone + meetings
+  // size in bytes (phone: Zoom's; meetings: total of child files)
   file_size?: number;
 
   // extras
@@ -50,7 +50,13 @@ type Recording = {
   host_name?: string;
   host_email?: string;
   meetingId?: string; // UUID for meeting delete API
+
+  // meeting-only: summary of child files
+  recording_files?: MeetingRecordingFile[];
+  files_count?: number;
+  files_types?: string[];
 };
+
 
 type ApiResponse = {
   next_page_token?: string | null;
@@ -69,8 +75,11 @@ type MeetingRecordingFile = {
   recording_end?: string;
   download_url?: string;
   file_type?: string;
+  file_extension?: string;
   file_size?: number;
+  recording_type?: string;
 };
+
 
 type MeetingItem = {
   uuid: string;
@@ -312,87 +321,129 @@ const App: React.FC = () => {
     const params = new URLSearchParams();
     params.set("from", from);
     params.set("to", to);
-
+  
     const zoomPageSize = Math.min(pageSize || 100, 300);
     params.set("page_size", String(zoomPageSize));
-
+  
     if (tokenOverride && tokenOverride.length > 0) {
       params.set("next_page_token", tokenOverride);
     }
-
+  
     const res = await fetch(`/api/meeting/recordings?${params.toString()}`);
     if (!res.ok) {
       const text = await res.text();
       throw new Error(`HTTP ${res.status}: ${text}`);
     }
-
+  
     const api: MeetingApiResponse = await res.json();
-
+  
     console.debug("Meeting API raw sample", {
       from: api.from,
       to: api.to,
       count: api.meetings?.length ?? 0,
       first: api.meetings?.[0],
     });
-
+  
     const recs: Recording[] = [];
-
+  
     for (const m of api.meetings ?? []) {
       const mm: any = m;
-
+  
       const hostEmail: string =
-        mm.hostEmail ||
-        mm.host_email ||
-        mm.owner_email ||
+        mm.hostEmail || // from worker attachHostsToRecordings
+        mm.host_email || // if snake_case
+        mm.owner_email || // from worker
         "";
-
+  
       const hostName: string =
-        mm.hostName ||
-        mm.owner_name ||
-        hostEmail ||
-        mm.topic ||
+        mm.hostName || // from worker attachHostsToRecordings
+        mm.owner_name || // from worker
+        hostEmail || // fall back to email
+        mm.topic || // or topic
         "Unknown";
-
-      for (const f of m.recording_files ?? []) {
-        recs.push({
-          id:
-            f.id ||
-            `${m.id}-${f.file_type ?? "file"}-${f.recording_start ?? ""}`,
-          caller_number: "",
-          caller_number_type: 0,
-          callee_number: "",
-          callee_number_type: 0,
-          date_time: f.recording_start || m.start_time,
-          end_time: f.recording_end,
-          duration: m.duration ?? 0,
-          recording_type: f.file_type || "Recording",
-          download_url: f.download_url,
-          file_size:
-            typeof f.file_size === "number" ? f.file_size : undefined,
-
-          caller_name: m.topic,
-          callee_name: hostEmail || hostName,
-
-          owner: {
-            type: "user",
-            id: m.host_id,
-            name: hostName || hostEmail || "Unknown",
-          },
-
-          site: { id: "", name: "Meeting" },
-          direction: "meeting",
-          disclaimer_status: undefined,
-          source: "meetings",
-          topic: m.topic,
-          host_name: hostName,
-          host_email: hostEmail,
-          meetingId: m.uuid,
-        });
+  
+      const files: MeetingRecordingFile[] = Array.isArray(m.recording_files)
+        ? m.recording_files
+        : [];
+  
+      // Earliest recording_start or fall back to meeting start_time
+      let firstStartIso: string | undefined = undefined;
+      const starts: Date[] = [];
+  
+      for (const f of files) {
+        if (f.recording_start) {
+          const d = new Date(f.recording_start);
+          if (!isNaN(d.getTime())) {
+            starts.push(d);
+          }
+        }
       }
+  
+      if (starts.length) {
+        starts.sort((a, b) => a.getTime() - b.getTime());
+        firstStartIso = starts[0].toISOString();
+      }
+  
+      const totalSizeBytes = files.reduce((acc, f) => {
+        const sz =
+          typeof f.file_size === "number" && !isNaN(f.file_size)
+            ? f.file_size
+            : 0;
+        return acc + sz;
+      }, 0);
+  
+      const fileTypes = Array.from(
+        new Set(
+          files
+            .map((f) => f.file_type || "")
+            .filter((s) => typeof s === "string" && s.length > 0)
+        )
+      );
+  
+      recs.push({
+        // Use meeting UUID as primary id
+        id: m.uuid || String(m.id),
+        caller_number: "",
+        caller_number_type: 0,
+        callee_number: "",
+        callee_number_type: 0,
+  
+        date_time: firstStartIso || m.start_time,
+        end_time: undefined,
+        duration: m.duration ?? 0,
+        recording_type: "Meeting",
+        download_url: undefined,
+  
+        // Show topic & host like before
+        caller_name: m.topic,
+        callee_name: hostEmail || hostName,
+  
+        owner: {
+          type: "user",
+          id: m.host_id,
+          name: hostName || hostEmail || "Unknown",
+        },
+  
+        site: { id: "", name: "Meeting" },
+        direction: "meeting",
+        disclaimer_status: undefined,
+        source: "meetings",
+        topic: m.topic,
+        host_name: hostName,
+        host_email: hostEmail,
+        meetingId: m.uuid,
+  
+        // size + child summary
+        file_size: totalSizeBytes || undefined,
+        recording_files: files,
+        files_count: files.length,
+        files_types: fileTypes,
+      });
     }
-
+  
     return { api, recs };
   };
+  
 
   const fetchRecordings = async (tokenOverride: string | null = null) => {
     setLoading(true);
@@ -647,20 +698,18 @@ const App: React.FC = () => {
                 );
               }
             } else {
-              if (!rec.id || !rec.meetingId) {
-                throw new Error(
-                  "Missing meetingId or recordingId for meeting recording"
-                );
+              if (!rec.meetingId) {
+                throw new Error("Missing meetingId for meeting recording");
               }
               const res = await fetch("/api/meeting/recordings/delete", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                   meetingId: rec.meetingId,
-                  recordingId: rec.id,
                   action: "trash",
                 }),
               });
+            
               if (!res.ok) {
                 const txt = await res.text();
                 console.error("Meeting delete failed", res.status, txt);
@@ -1081,6 +1130,7 @@ const App: React.FC = () => {
                       <th>Secondary</th>
                       <th>Owner / Host</th>
                       <th>Site</th>
+                      <th>Files</th>
                       <th>Size</th>
                       <th>Duration (s)</th>
                       <th>Type</th>
@@ -1186,6 +1236,31 @@ const App: React.FC = () => {
 
                               const sizeDisplay = formatBytes(rec.file_size);
 
+                              const sizeDisplay = formatBytes(rec.file_size);
+
+                              // Meeting vs phone files summary
+                              let filesDisplay = "—";
+                              if (isMeeting) {
+                                const fileCount =
+                                  rec.files_count ?? rec.recording_files?.length ?? 0;
+
+                                const typeList =
+                                  rec.files_types ??
+                                  Array.from(
+                                    new Set(
+                                      (rec.recording_files ?? [])
+                                        .map((f: any) => f.file_type)
+                                        .filter(Boolean)
+                                    )
+                                  );
+
+                                if (fileCount > 0) {
+                                  filesDisplay =
+                                    `${fileCount} file${fileCount !== 1 ? "s" : ""}` +
+                                    (typeList.length ? ` (${typeList.join(", ")})` : "");
+                                }
+                              }
+
                               return (
                                 <tr key={key} className="rec-row">
                                   <td>
@@ -1203,6 +1278,7 @@ const App: React.FC = () => {
                                   <td>{secondary}</td>
                                   <td>{ownerDisplay}</td>
                                   <td>{siteName}</td>
+                                  <td>{filesDisplay}</td>
                                   <td>{sizeDisplay}</td>
                                   <td>{rec.duration ?? "—"}</td>
                                   <td>{rec.recording_type || "—"}</td>

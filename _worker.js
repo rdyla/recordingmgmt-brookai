@@ -235,12 +235,12 @@ async function handleDeleteMeetingRecording(req, env) {
   }
 
   const meetingId = body?.meetingId; // UUID string
-  const recordingId = body?.recordingId;
+  const recordingId = body?.recordingId; // optional: if omitted, delete all
   const action = body?.action || "trash"; // or "delete"
 
-  if (!meetingId || !recordingId) {
+  if (!meetingId) {
     return json(400, {
-      error: "Missing meetingId or recordingId",
+      error: "Missing meetingId",
     });
   }
 
@@ -254,9 +254,16 @@ async function handleDeleteMeetingRecording(req, env) {
   }
   meetingPathId = encodeURIComponent(meetingPathId); // always encode for URL
 
-  const recordingPathId = encodeURIComponent(String(recordingId));
+  let zoomUrl;
+  if (recordingId) {
+    // Delete a single recording file
+    const recordingPathId = encodeURIComponent(String(recordingId));
+    zoomUrl = `${ZOOM_API_BASE}/meetings/${meetingPathId}/recordings/${recordingPathId}`;
+  } else {
+    // Delete ALL recordings for this meeting
+    zoomUrl = `${ZOOM_API_BASE}/meetings/${meetingPathId}/recordings`;
+  }
 
-  let zoomUrl = `${ZOOM_API_BASE}/meetings/${meetingPathId}/recordings/${recordingPathId}`;
   const params = new URLSearchParams();
   params.set("action", action);
   zoomUrl += `?${params.toString()}`;
