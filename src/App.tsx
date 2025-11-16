@@ -1113,30 +1113,26 @@ const App: React.FC = () => {
             ) : (
               <div className="table-wrapper">
                 <table className="rec-table">
-                  <thead>
-                    <tr>
-                      <th>
-                        <input
-                          type="checkbox"
-                          checked={allOnPageSelected}
-                          onChange={(e) =>
-                            selectAllOnPage(e.target.checked)
-                          }
-                        />
-                      </th>
-                      <th>Date / Time</th>
-                      <th>Source</th>
-                      <th>Primary</th>
-                      <th>Secondary</th>
-                      <th>Owner / Host</th>
-                      <th>Site</th>
-                      <th>Files</th>
-                      <th>Size</th>
-                      <th>Duration (s)</th>
-                      <th>Type</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
+                <thead>
+                  <tr>
+                    <th>
+                      <input
+                        type="checkbox"
+                        checked={allOnPageSelected}
+                        onChange={(e) => selectAllOnPage(e.target.checked)}
+                      />
+                    </th>
+                    <th>Date / Time</th>
+                    <th>Source</th>
+                    <th>Primary</th>
+                    <th>Owner / Host</th>
+                    <th>Site</th>
+                    <th>Files</th>
+                    <th>Size</th>
+                    <th>Type</th>
+                  </tr>
+                </thead>
+
                   <tbody>
                     {ownerGroups.map((group) => {
                       const groupSelected = isGroupFullySelected(group);
@@ -1162,7 +1158,7 @@ const App: React.FC = () => {
                                 }
                               />
                             </td>
-                            <td colSpan={10}>
+                            <td colSpan={8}>
                               <button
                                 type="button"
                                 className="group-toggle"
@@ -1190,13 +1186,13 @@ const App: React.FC = () => {
                             group.items.map(({ rec, globalIndex }) => {
                               const key = makeRecordKey(rec, globalIndex);
                               const isMeeting = rec.source === "meetings";
-
+                            
                               const dt = rec.date_time
                                 ? new Date(rec.date_time)
                                 : rec.end_time
                                 ? new Date(rec.end_time)
                                 : null;
-
+                            
                               const dateDisplay = dt
                                 ? dt.toLocaleString(undefined, {
                                     year: "numeric",
@@ -1206,108 +1202,109 @@ const App: React.FC = () => {
                                     minute: "2-digit",
                                   })
                                 : "—";
-
+                            
                               const primary = isMeeting
                                 ? rec.topic || rec.caller_name || "Meeting"
                                 : rec.caller_name && rec.caller_number
                                 ? `${rec.caller_name} (${rec.caller_number})`
                                 : rec.caller_name || rec.caller_number || "—";
-
-                              const secondary = isMeeting
-                                ? rec.host_email || rec.callee_name || "—"
-                                : rec.callee_name && rec.callee_number
-                                ? `${rec.callee_name} (${rec.callee_number})`
-                                : rec.callee_name || rec.callee_number || "—";
-
+                            
                               const ownerDisplay = isMeeting
                                 ? rec.host_email || rec.owner?.name || "—"
-                                : rec.owner?.name &&
-                                  rec.owner?.extension_number
+                                : rec.owner?.name && rec.owner?.extension_number
                                 ? `${rec.owner.name} (${rec.owner.extension_number})`
                                 : rec.owner?.name || "—";
-
-                              const siteName = isMeeting
-                                ? "—"
-                                : rec.site?.name || "—";
-
-                              const sourceLabel = isMeeting
-                                ? "Meeting"
-                                : "Phone";
-
+                            
+                              const siteName = isMeeting ? "Meeting" : rec.site?.name || "—";
+                            
+                              const sourceLabel = isMeeting ? "Meeting" : "Phone";
+                            
                               const sizeDisplay = formatBytes(rec.file_size);
-
-                              // Meeting vs phone files summary
-                              let filesDisplay = "—";
+                            
+                              // ----- Files column display -----
+                              let filesDisplay: React.ReactNode = "—";
+                            
                               if (isMeeting) {
-                                const fileCount =
-                                  rec.files_count ?? rec.recording_files?.length ?? 0;
-
-                                const typeList =
-                                  rec.files_types ??
-                                  Array.from(
-                                    new Set(
-                                      (rec.recording_files ?? [])
-                                        .map((f: any) => f.file_type)
-                                        .filter(Boolean)
-                                    )
-                                  );
-
+                                const files = rec.recording_files ?? [];
+                                const fileCount = rec.files_count ?? files.length;
+                            
                                 if (fileCount > 0) {
-                                  filesDisplay =
-                                    `${fileCount} file${fileCount !== 1 ? "s" : ""}` +
-                                    (typeList.length ? ` (${typeList.join(", ")})` : "");
+                                  const seenTypes = new Set<string>();
+                                  const fileLinks: React.ReactNode[] = [];
+                            
+                                  for (const f of files) {
+                                    const t = (f.file_type || "FILE").toUpperCase();
+                                    if (!f.download_url || seenTypes.has(t)) continue;
+                                    seenTypes.add(t);
+                            
+                                    const href = `/api/meeting/recordings/download?url=${encodeURIComponent(
+                                      f.download_url
+                                    )}`;
+                            
+                                    fileLinks.push(
+                                      <a
+                                        key={t}
+                                        href={href}
+                                        className="text-sky-400 hover:underline"
+                                      >
+                                        {t}
+                                      </a>
+                                    );
+                                  }
+                            
+                                  filesDisplay = (
+                                    <>
+                                      {fileCount} file{fileCount !== 1 ? "s" : ""}
+                                      {fileLinks.length > 0 && (
+                                        <>
+                                          {" ("}
+                                          {fileLinks.map((link, i) => (
+                                            <React.Fragment key={i}>
+                                              {i > 0 && ", "}
+                                              {link}
+                                            </React.Fragment>
+                                          ))}
+                                          {")"}
+                                        </>
+                                      )}
+                                    </>
+                                  );
+                                }
+                              } else {
+                                // Phone recordings: single recording file per row
+                                if (rec.download_url && !demoMode) {
+                                  const href = `/api/phone/recordings/download?url=${encodeURIComponent(
+                                    rec.download_url
+                                  )}`;
+                                  filesDisplay = (
+                                    <a href={href} className="text-sky-400 hover:underline">
+                                      Recording
+                                    </a>
+                                  );
                                 }
                               }
-
+                            
                               return (
                                 <tr key={key} className="rec-row">
                                   <td>
                                     <input
                                       type="checkbox"
                                       checked={selectedKeys.has(key)}
-                                      onChange={() =>
-                                        toggleRowSelection(rec, globalIndex)
-                                      }
+                                      onChange={() => toggleRowSelection(rec, globalIndex)}
                                     />
                                   </td>
                                   <td>{dateDisplay}</td>
                                   <td>{sourceLabel}</td>
                                   <td>{primary}</td>
-                                  <td>{secondary}</td>
                                   <td>{ownerDisplay}</td>
                                   <td>{siteName}</td>
                                   <td>{filesDisplay}</td>
                                   <td>{sizeDisplay}</td>
-                                  <td>{rec.duration ?? "—"}</td>
                                   <td>{rec.recording_type || "—"}</td>
-                                  <td>
-                                    {rec.download_url && !demoMode && (
-                                      <a
-                                        href={`/api/phone/recordings/download?url=${encodeURIComponent(
-                                          rec.download_url
-                                        )}`}
-                                        className="text-sky-400 hover:underline mr-2"
-                                      >
-                                        Download
-                                      </a>
-                                    )}
-
-                                    {rec.call_history_id && !isMeeting && (
-                                      <button
-                                        className="pager-btn"
-                                        onClick={() => {
-                                          alert(
-                                            "Details view coming soon for this recording."
-                                          );
-                                        }}
-                                      >
-                                        Details
-                                      </button>
-                                    )}
-                                  </td>
                                 </tr>
                               );
                             })}
+                            
                         </React.Fragment>
                       );
                     })}

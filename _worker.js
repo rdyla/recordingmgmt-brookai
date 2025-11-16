@@ -676,6 +676,47 @@ async function handleDownloadRecording(req, env) {
   return new Response(zoomRes.body, { status: zoomRes.status, headers });
 }
 
+/* -------------------- DOWNLOAD PROXY (MEETING) -------------------- */
+
+async function handleDownloadMeetingRecording(req, env) {
+  const url = new URL(req.url);
+  const target = url.searchParams.get("url");
+
+  if (!target) {
+    return json(400, { error: "Missing 'url' query parameter" });
+  }
+
+  let zoomUrl;
+  try {
+    zoomUrl = new URL(target);
+  } catch {
+    return json(400, { error: "Invalid URL" });
+  }
+
+  // Basic safety: only allow zoom.us domains
+  if (!zoomUrl.hostname.endsWith("zoom.us")) {
+    return json(400, { error: "Blocked URL" });
+  }
+
+  const token = await getZoomAccessToken(env);
+
+  const zoomRes = await fetch(zoomUrl.toString(), {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  const headers = new Headers();
+  const ct = zoomRes.headers.get("content-type");
+  if (ct) headers.set("Content-Type", ct);
+  const cd = zoomRes.headers.get("content-disposition");
+  if (cd) headers.set("Content-Disposition", cd);
+
+  return new Response(zoomRes.body, {
+    status: zoomRes.status,
+    headers,
+  });
+}
+
+
 /* -------------------- JSON HELPER -------------------- */
 
 function json(status, obj) {
@@ -719,6 +760,11 @@ export default {
     // Meeting identity
     if (url.pathname === "/api/meeting/identity" && req.method === "GET") {
       return handleGetMeetingIdentity(req, env);
+    }
+
+    // Meeting recordings download proxy
+    if (url.pathname === "/api/meeting/recordings/download" && req.method === "GET") {
+      return handleDownloadMeetingRecording(req, env);
     }
 
     // Asset serving (React UI)
