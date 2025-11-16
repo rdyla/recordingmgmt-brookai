@@ -678,6 +678,8 @@ async function handleDownloadRecording(req, env) {
 
 /* -------------------- DOWNLOAD PROXY (MEETING) -------------------- */
 
+/* -------------------- DOWNLOAD PROXY (MEETING) -------------------- */
+
 async function handleDownloadMeetingRecording(req, env) {
   const url = new URL(req.url);
   const target = url.searchParams.get("url");
@@ -693,15 +695,25 @@ async function handleDownloadMeetingRecording(req, env) {
     return json(400, { error: "Invalid URL" });
   }
 
-  // Basic safety: only allow zoom.us domains
-  if (!zoomUrl.hostname.endsWith("zoom.us")) {
+  // Basic safety: only allow Zoom's recording download/play URLs
+  if (
+    !zoomUrl.hostname.endsWith("zoom.us") ||
+    (!zoomUrl.pathname.startsWith("/rec/download") &&
+      !zoomUrl.pathname.startsWith("/rec/play"))
+  ) {
     return json(400, { error: "Blocked URL" });
   }
 
+  // Get an access token from Zoom using the S2S app
   const token = await getZoomAccessToken(env);
 
+  // For meeting recording download URLs, Zoom expects access_token as a query param
+  if (!zoomUrl.searchParams.has("access_token")) {
+    zoomUrl.searchParams.set("access_token", token);
+  }
+
   const zoomRes = await fetch(zoomUrl.toString(), {
-    headers: { Authorization: `Bearer ${token}` },
+    method: "GET",
   });
 
   const headers = new Headers();
@@ -715,7 +727,6 @@ async function handleDownloadMeetingRecording(req, env) {
     headers,
   });
 }
-
 
 /* -------------------- JSON HELPER -------------------- */
 
