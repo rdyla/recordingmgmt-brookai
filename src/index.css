@@ -44,7 +44,8 @@ body {
 .app-main {
   flex: 1;
   padding: 20px 24px 32px;
-  /* NEW: make main area a flex column and keep it inside viewport */
+
+  /* Make main area a flex column and keep it inside viewport */
   display: flex;
   flex-direction: column;
   min-height: 0; /* important for nested flex scrolling */
@@ -56,9 +57,11 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  flex: 1;       /* NEW: fill vertical space */
+  flex: 1;       /* fill vertical space */
   min-height: 0; /* let children scroll */
 }
+
+/* ---- Cards ---- */
 
 .app-card {
   background-color: #020617;
@@ -67,30 +70,32 @@ body {
   padding: 16px 20px;
   box-shadow: 0 18px 40px rgba(15, 23, 42, 0.85);
 
-  /* NEW: make card itself a flex column */
+  /* Make card itself a flex column */
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
 }
 
-/* Force table wrapper to use available height */
+/* ---- Table wrapper & table ---- */
+
+/* This is the *only* table-wrapper block now */
 .table-wrapper {
   margin-top: 4px;
-  flex: 1 1 auto;                         /* take remaining height in card */
+  flex: 1 1 auto;   /* take remaining height in the card */
   min-height: 0;
-  max-height: 100%;                       /* don’t grow past card */
-  overflow: auto;                         /* vertical + horizontal scroll inside */
+  max-height: 100%;
+  overflow: auto;   /* vertical + horizontal scroll inside */
   border-radius: 8px;
 }
 
-/* Let the table fill width and handle columns comfortably */
+/* This is the *only* rec-table block now */
 .rec-table {
   border-collapse: collapse;
   font-size: 13px;
   width: 100%;
-  table-layout: auto;                     /* let columns size naturally */
-  min-width: 900px;                       /* reasonable width so no squish */
+  table-layout: auto;    /* let columns size naturally */
+  min-width: 900px;      /* so columns don’t get squished */
 }
 
 .rec-table th,
@@ -98,6 +103,29 @@ body {
   padding: 6px 10px;
   text-align: left;
   white-space: nowrap;
+}
+
+.rec-table thead {
+  background-color: #020617;
+  border-bottom: 1px solid #1f2937;
+}
+
+.rec-table th {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.rec-row {
+  border-top: 1px solid #111827;
+}
+
+.rec-row:hover {
+  background-color: #020617;
+}
+
+.rec-table-empty {
+  font-size: 13px;
+  color: #9ca3af;
 }
 
 /* ---- Filters row ---- */
@@ -242,56 +270,13 @@ input[type="date"].form-control {
   left: 0;
   height: 100%;
   border-radius: 999px;
-  background-color: #0ea5e9; /* tailwind sky-500-ish */
+  background-color: #0ea5e9; /* sky-500-ish */
   transition: width 0.15s ease-out;
 }
 
 .delete-progress-text {
   font-size: 0.75rem;
   color: #64748b; /* slate-500-ish */
-}
-
-/* ---- Table ---- */
-
-.table-wrapper {
-  margin-top: 4px;
-  overflow: auto;
-}
-
-.rec-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-
-.rec-table th,
-.rec-table td {
-  padding: 6px 10px;
-  text-align: left;
-  white-space: nowrap;
-}
-
-.rec-table thead {
-  background-color: #020617;
-  border-bottom: 1px solid #1f2937;
-}
-
-.rec-table th {
-  font-size: 11px;
-  color: #9ca3af;
-}
-
-.rec-row {
-  border-top: 1px solid #111827;
-}
-
-.rec-row:hover {
-  background-color: #020617;
-}
-
-.rec-table-empty {
-  font-size: 13px;
-  color: #9ca3af;
 }
 
 /* Expand / collapse group toggle */
@@ -346,7 +331,7 @@ input[type="date"].form-control {
   cursor: default;
 }
 
-/* ---- Little Tailwind-ish fallbacks we already used ---- */
+/* ---- Tailwind-ish utility fallbacks ---- */
 
 .bg-slate-900 {
   background-color: #020617 !important;
