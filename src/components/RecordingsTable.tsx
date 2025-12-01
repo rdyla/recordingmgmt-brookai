@@ -47,6 +47,7 @@ const RecordingsTable: React.FC<RecordingsTableProps> = ({
             <th>Primary</th>
             <th>Owner / Host</th>
             <th>Site</th>
+            <th>Auto-delete</th>
             <th>Files</th>
             <th>Size</th>
             <th>Type</th>
@@ -73,7 +74,7 @@ const RecordingsTable: React.FC<RecordingsTableProps> = ({
                       onChange={(e) => toggleGroupSelection(group, e.target.checked)}
                     />
                   </td>
-                  <td colSpan={8}>
+                  <td colSpan={9}>
                     <button
                       type="button"
                       className="group-toggle"
@@ -90,7 +91,8 @@ const RecordingsTable: React.FC<RecordingsTableProps> = ({
                     <strong>{group.ownerLabel}</strong>{" "}
                     <span style={{ opacity: 0.8 }}>
                       · {group.sourceLabel} · {group.count} recording
-                      {group.count !== 1 ? "s" : ""} · Total size {formatBytes(group.totalSizeBytes)} · {dateRangeLabel}
+                      {group.count !== 1 ? "s" : ""} · Total size{" "}
+                      {formatBytes(group.totalSizeBytes)} · {dateRangeLabel}
                     </span>
                   </td>
                 </tr>
@@ -132,6 +134,17 @@ const RecordingsTable: React.FC<RecordingsTableProps> = ({
                     const sourceLabel = isMeeting ? "Meeting" : "Phone";
                     const sizeDisplay = formatBytes(rec.file_size);
 
+                    // Auto-delete display (meetings only)
+                    const autoDeleteDisplay = isMeeting
+                      ? rec.autoDelete == null
+                        ? "—"
+                        : rec.autoDelete
+                        ? rec.autoDeleteDate
+                          ? `On (${rec.autoDeleteDate})`
+                          : "On"
+                        : "Off"
+                      : "—";
+
                     let filesDisplay: React.ReactNode = "—";
 
                     if (isMeeting) {
@@ -158,10 +171,14 @@ const RecordingsTable: React.FC<RecordingsTableProps> = ({
                                 .slice(0, 19)
                                 .replace(/[:T]/g, "-")
                             : rec.date_time
-                            ? new Date(rec.date_time).toISOString().slice(0, 19).replace(/[:T]/g, "-")
+                            ? new Date(rec.date_time)
+                                .toISOString()
+                                .slice(0, 19)
+                                .replace(/[:T]/g, "-")
                             : "recording";
 
-                          const ext = (f.file_extension || f.file_type || "").toLowerCase() || "dat";
+                          const ext =
+                            (f.file_extension || f.file_type || "").toLowerCase() || "dat";
 
                           const filename = `${safeTopic}_${dtPart}.${ext}`;
 
@@ -222,6 +239,7 @@ const RecordingsTable: React.FC<RecordingsTableProps> = ({
                         <td>{primary}</td>
                         <td>{ownerDisplay}</td>
                         <td>{siteName}</td>
+                        <td>{autoDeleteDisplay}</td>
                         <td>{filesDisplay}</td>
                         <td>{sizeDisplay}</td>
                         <td>{rec.recording_type || "—"}</td>
