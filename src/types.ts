@@ -64,6 +64,10 @@ export type Recording = {
   recording_files?: MeetingRecordingFile[];
   files_count?: number;
   files_types?: string[];
+
+  // meeting-only: auto-delete flags
+  autoDelete?: boolean | null;
+  autoDeleteDate?: string | null; // "YYYY-MM-DD"
 };
 
 export type ApiResponse = {
@@ -84,7 +88,13 @@ export type MeetingItem = {
   start_time: string;
   duration?: number;
   host_id: string;
-  host_email: string;
+  host_email?: string;
+  owner_email?: string;
+  owner_name?: string;
+  auto_delete?: boolean;
+  auto_delete_date?: string;
+  autoDelete?: boolean;
+  autoDeleteDate?: string;
   recording_files?: MeetingRecordingFile[];
 };
 
