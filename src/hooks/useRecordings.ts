@@ -135,6 +135,12 @@ const useRecordings = (
           )
         );
 
+        // Pick up auto-delete flags; support both snake_case and camelCase from backend
+        const autoDelete: boolean | null =
+          mm.autoDelete ?? mm.auto_delete ?? null;
+        const autoDeleteDate: string | null =
+          mm.autoDeleteDate ?? mm.auto_delete_date ?? null;
+
         recs.push({
           id: m.uuid || String(m.id),
           caller_number: "",
@@ -165,6 +171,8 @@ const useRecordings = (
           recording_files: files,
           files_count: files.length,
           files_types: fileTypes,
+          autoDelete,
+          autoDeleteDate,
         });
       }
 
