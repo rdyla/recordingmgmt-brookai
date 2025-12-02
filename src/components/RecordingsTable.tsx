@@ -73,7 +73,7 @@ const RecordingsTable: React.FC<RecordingsTableProps> = ({
                       }
                     />
                   </td>
-                  {/* 1 checkbox + 6 remaining columns = colSpan 6 */}
+                  {/* 6 remaining columns after the checkbox */}
                   <td colSpan={6}>
                     <button
                       type="button"
@@ -175,11 +175,7 @@ const RecordingsTable: React.FC<RecordingsTableProps> = ({
                           )}&filename=${encodeURIComponent(filename)}`;
 
                           fileLinks.push(
-                            <a
-                              key={t}
-                              href={href}
-                              className="text-sky-400 hover:underline"
-                            >
+                            <a key={t} href={href} className="text-sky-400 hover:underline">
                               {t}
                             </a>
                           );
@@ -210,10 +206,7 @@ const RecordingsTable: React.FC<RecordingsTableProps> = ({
                           rec.download_url
                         )}`;
                         filesDisplay = (
-                          <a
-                            href={href}
-                            className="text-sky-400 hover:underline"
-                          >
+                          <a href={href} className="text-sky-400 hover:underline">
                             Recording
                           </a>
                         );
