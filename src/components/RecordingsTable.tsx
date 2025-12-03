@@ -174,7 +174,7 @@ const RecordingsTable: React.FC<RecordingsTableProps> = ({
                             <a
                               key={t}
                               href={href}
-                              className="text-sky-400 hover:underline"
+                              className="file-pill"
                             >
                               {t}
                             </a>
@@ -236,7 +236,7 @@ const RecordingsTable: React.FC<RecordingsTableProps> = ({
                         <td>{dateDisplay}</td>
                         <td>{primary}</td>
                         <td>{ownerDisplay}</td>
-                        <td>{filesDisplay}</td>
+                        <td><div className="files-cell">{filesDisplay}</div></td>
                         <td>{sizeDisplay}</td>
                         <td>{isMeeting && autoDeleteDate ? autoDeleteDate : ""}</td>
                       </tr>

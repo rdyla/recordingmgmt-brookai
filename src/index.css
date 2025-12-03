@@ -184,6 +184,37 @@ input[type="date"].form-control {
   cursor: pointer;
 }
 
+/* ----- File Pills (MP4, M4A, TRANSCRIPT, etc.) ----- */
+
+.file-pill {
+  display: inline-block;
+  padding: 3px 10px;
+  margin: 0 4px 4px 0;
+  background-color: #0f172a;      /* slate-900 */
+  border: 1px solid #1e293b;      /* slate-800 */
+  border-radius: 999px;           /* pill shape */
+  color: #38bdf8;                 /* sky-400 */
+  font-size: 11px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.file-pill:hover {
+  background-color: #1e293b;      /* slightly lighter slate */
+  border-color: #38bdf8;          /* sky-400 border highlight */
+  color: #f0f9ff;                 /* sky-50 text */
+}
+
+/* Keep multiple pills nicely grouped */
+.files-cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+
 /* Firefox tweak */
 .form-control[type="date"]::-moz-focus-inner {
   border: 0;
