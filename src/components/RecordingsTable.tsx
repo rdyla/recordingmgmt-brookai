@@ -236,7 +236,7 @@ const RecordingsTable: React.FC<RecordingsTableProps> = ({
                         <td>{dateDisplay}</td>
                         <td>{primary}</td>
                         <td>{ownerDisplay}</td>
-                        <td><div className="files-cell">{filesDisplay}</div></td>
+                        <td>{filesDisplay}</td>
                         <td>{sizeDisplay}</td>
                         <td>{isMeeting && autoDeleteDate ? autoDeleteDate : ""}</td>
                       </tr>
