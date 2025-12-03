@@ -505,25 +505,6 @@ const App: React.FC = () => {
                 className="flex gap-3 items-end"
                 style={{ alignSelf: "stretch", justifyContent: "flex-end" }}
               >
-                <div className="flex items-center gap-2">
-                  <button
-                    className="pager-btn"
-                    onClick={handlePrevPage}
-                    disabled={safePageIndex <= 0 || deleting}
-                  >
-                    Prev page
-                  </button>
-                  <button
-                    className="pager-btn"
-                    onClick={handleNextPage}
-                    disabled={safePageIndex + 1 >= totalPages || deleting}
-                  >
-                    Next page
-                  </button>
-                  <span className="filter-label">
-                    Page {totalPages ? safePageIndex + 1 : 0} / {totalPages}
-                  </span>
-                </div>
 
                 <button
                   className="btn-primary"
@@ -631,6 +612,28 @@ const App: React.FC = () => {
               />
             )}
           </section>
+        </div>
+
+        <div className="pager" style={{ marginTop: 12 }}>
+          <div className="pager-buttons">
+            <button
+              onClick={handlePrevPage}
+              disabled={safePageIndex <= 0 || deleting}
+              className="pager-btn"
+            >
+              Prev page
+            </button>
+            <button
+              onClick={handleNextPage}
+              disabled={safePageIndex + 1 >= totalPages || deleting}
+              className="pager-btn"
+            >
+              Next page
+            </button>
+          </div>
+          <div>
+            Page {totalPages ? safePageIndex + 1 : 0} / {totalPages}
+          </div>
         </div>
 
         {/* Delete review modal */}
