@@ -209,12 +209,13 @@ input[type="date"].form-control {
   gap: 6px;
   background-color: #0284c7;
   border: none;
-  border-radius: 8px;
-  padding: 6px 14px;
+  border-radius: 999px;
+  padding: 6px 16px;
   font-size: 13px;
   font-weight: 500;
   color: #f9fafb;
   cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.1s ease;
 }
 
 .btn-primary:hover {
@@ -224,7 +225,9 @@ input[type="date"].form-control {
 .btn-primary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+  transform: none;
 }
+
 
 .stats {
   font-size: 11px;
@@ -362,27 +365,50 @@ input[type="date"].form-control {
 }
 
 /* Generic secondary button (matches pager-btn) */
+/* ---- Generic button style (for .btn and .pager-btn) ---- */
 
-.btn {
-  padding: 4px 12px;
+.btn,
+.pager-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+
+  padding: 4px 10px;
   border-radius: 999px;
   border: 1px solid #374151;
-  background-color: transparent;
+
+  background-color: rgba(15, 23, 42, 0.9);  /* dark slate */
   color: #e5e7eb;
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 500;
+
   cursor: pointer;
-  white-space: nowrap; /* <— keeps “Expand all groups” on one line */
+  white-space: nowrap;                       /* keeps “Expand all groups” on one line */
+  transition: background-color 0.15s ease, border-color 0.15s ease,
+    color 0.15s ease, transform 0.1s ease;
 }
 
-.btn:hover:not(:disabled) {
-  background-color: rgba(15, 23, 42, 0.9);
-  border-color: #38bdf8;
+.btn:hover,
+.pager-btn:hover {
+  background-color: #0f172a;                /* slate-900-ish */
+  border-color: #38bdf8;                    /* sky-400 */
+  color: #f9fafb;
+  transform: translateY(-0.5px);
 }
 
-.btn:disabled {
-  opacity: 0.5;
+.btn:active,
+.pager-btn:active {
+  transform: translateY(0);
+}
+
+.btn:disabled,
+.pager-btn:disabled {
+  opacity: 0.45;
   cursor: default;
+  transform: none;
 }
+
 
 
 /* Danger button for destructive actions */
