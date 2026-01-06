@@ -217,74 +217,62 @@ const fetchMeetingAnalyticsSummary = useCallback(
     [filteredRecordings, makeRecordKey, selectedKeys]
   );
 
-    useEffect(() => {
-    if (demoMode) return;
-    if (source !== "meetings") return;
+  useEffect(() => {
+  if (demoMode) return;
+  if (source !== "meetings") return;
 
-    // Use API-adjusted range if available (since your worker echoes api.from/to)
-    const fromStr = data?.from ?? from;
-    const toStr = data?.to ?? to;
+  const fromStr = data?.from ?? from;
+  const toStr = data?.to ?? to;
 
-    // Only fetch for meetings on the current page
-    const meetingIds = Array.from(
-      new Set(
-        pageRecords
-          .map((r) => (r as any).meetingId)
-          .filter((id) => typeof id === "string" && id.length > 0)
-      )
-    );
+  const meetingIds = Array.from(
+    new Set(
+      pageRecords
+        .map((r) => r.meetingId)
+        .filter((id): id is string => typeof id === "string" && id.length > 0)
+    )
+  );
 
-    if (!meetingIds.length) return;
+  if (!meetingIds.length) return;
 
-    let cancelled = false;
+  let cancelled = false;
 
-    (async () => {
-      // Fetch only missing ones
-      const missing = meetingIds.filter((id) => analyticsByMeetingId[id] == null);
-      if (!missing.length) return;
+  (async () => {
+    const missing = meetingIds.filter((id) => analyticsByMeetingId[id] == null);
+    if (!missing.length) return;
 
-      // Throttle concurrency a bit
-      const concurrency = 6;
-      let idx = 0;
+    await runLimited(missing, 6, async (id) => {
+      const stats = await fetchMeetingAnalyticsSummary(id, fromStr, toStr);
+      if (cancelled) return;
 
-      const worker = async () => {
-        while (idx < missing.length) {
-          const i = idx++;
-          const id = missing[i];
-          const stats = await fetchMeetingAnalytics(id, fromStr, toStr);
+      setAnalyticsByMeetingId((prev) => ({
+        ...prev,
+        [id]:
+          stats ??
+          ({
+            meetingId: id,
+            plays: 0,
+            downloads: 0,
+            lastAccessDate: "",
+          } as MeetingAnalyticsStats),
+      }));
+    });
+  })();
 
-          if (cancelled) return;
-
-          setAnalyticsByMeetingId((prev) => ({
-            ...prev,
-            [id]: stats || { plays: 0, downloads: 0, lastAccessDate: "" },
-          }));
-        }
-      };
-
-      await Promise.all(
-        Array.from(
-          { length: Math.min(concurrency, missing.length) },
-          () => worker()
-        )
-      );
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    demoMode,
-    source,
-    from,
-    to,
-    data?.from,
-    data?.to,
-    pageRecords,
-    analyticsByMeetingId,
-    fetchMeetingAnalytics,
-  ]);
-
+  return () => {
+    cancelled = true;
+  };
+}, [
+  demoMode,
+  source,
+  from,
+  to,
+  data?.from,
+  data?.to,
+  pageRecords,
+  analyticsByMeetingId,
+  runLimited,
+  fetchMeetingAnalyticsSummary,
+]);
 
   const allOnPageSelected =
     pageRecords.length > 0 &&
@@ -378,32 +366,6 @@ const fetchMeetingAnalyticsSummary = useCallback(
 
     let success = 0;
     let failed = 0;
-
-      const fetchMeetingAnalytics = useCallback(
-      async (meetingId: string, fromStr: string, toStr: string) => {
-        const params = new URLSearchParams();
-        params.set("meetingId", meetingId);
-        params.set("from", fromStr);
-        params.set("to", toStr);
-
-        const res = await fetch(
-          `/api/meeting/recordings/analytics_summary?${params.toString()}`
-        );
-        if (!res.ok) {
-          // Don’t throw — just mark as empty so UI doesn’t spin forever
-          return null;
-        }
-        const json = await res.json();
-        if (!json?.ok) return null;
-
-        return {
-          plays: Number(json.plays ?? 0),
-          downloads: Number(json.downloads ?? 0),
-          lastAccessDate: String(json.lastAccessDate ?? ""),
-        } as MeetingAnalytics;
-      },
-      []
-    );
 
     try {
       for (let i = 0; i < toDelete.length; i++) {
