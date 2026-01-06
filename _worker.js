@@ -224,54 +224,80 @@ async function handleDeletePhoneRecording(req, env) {
 
 async function handleGetMeetingRecordingAnalyticsSummary(req, env) {
   const url = new URL(req.url);
-
   const meetingId = url.searchParams.get("meetingId") || "";
   const from = url.searchParams.get("from") || "";
   const to = url.searchParams.get("to") || "";
 
-  if (!meetingId || !from || !to) {
-    return json(400, { error: "Missing meetingId/from/to" });
-  }
+  if (!meetingId) return json(400, { ok: false, error: "Missing meetingId" });
+  if (!from || !to) return json(400, { ok: false, error: "Missing from/to" });
 
   const token = await getZoomAccessToken(env);
 
-  // Zoom UUID encoding can be weird. Match your delete logic (double-encode when needed).
-  const rawMeetingId = String(meetingId);
-  let meetingPathId = rawMeetingId;
-  if (meetingPathId.startsWith("/") || meetingPathId.includes("//")) {
-    meetingPathId = encodeURIComponent(meetingPathId); // first encode
+  const meetingPathId = encodeZoomMeetingId(meetingId);
+
+  const fetchDetails = async (type) => {
+    const u = new URL(`${ZOOM_API_BASE}/meetings/${meetingPathId}/recordings/analytics_details`);
+    u.searchParams.set("from", from);
+    u.searchParams.set("to", to);
+    u.searchParams.set("type", type); // REQUIRED: by_view | by_download
+    u.searchParams.set("page_size", "300");
+
+    const res = await fetch(u.toString(), {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    const text = await res.text();
+    let data = null;
+    try { data = JSON.parse(text); } catch { /* ignore */ }
+
+    if (!res.ok) {
+      return { ok: false, status: res.status, raw: text, data };
+    }
+
+    return { ok: true, data };
+  };
+
+  const byView = await fetchDetails("by_view");
+  const byDownload = await fetchDetails("by_download");
+
+  if (!byView.ok && !byDownload.ok) {
+    return json(502, {
+      ok: false,
+      error: "Both analytics calls failed",
+      by_view: byView,
+      by_download: byDownload,
+    });
   }
-  meetingPathId = encodeURIComponent(meetingPathId); // always encode for URL
 
-  const zoomUrl = new URL(
-    `${ZOOM_API_BASE}/meetings/${meetingPathId}/recordings/analytics_summary`
-  );
-  zoomUrl.searchParams.set("from", from);
-  zoomUrl.searchParams.set("to", to);
+  const plays = byView.ok ? Number(byView.data?.total_records ?? 0) : 0;
+  const downloads = byDownload.ok ? Number(byDownload.data?.total_records ?? 0) : 0;
 
-  const zoomRes = await fetch(zoomUrl.toString(), {
-    method: "GET",
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  // lastAccessDate = max date_time across BOTH sets (if present)
+  let last = "";
+  const bump = (iso) => {
+    const d = String(iso || "");
+    if (!d) return;
+    // ISO sorts lexicographically well for max comparisons
+    if (!last || d > last) last = d;
+  };
 
-  const text = await zoomRes.text();
+  const details1 = Array.isArray(byView.data?.analytics_details) ? byView.data.analytics_details : [];
+  const details2 = Array.isArray(byDownload.data?.analytics_details) ? byDownload.data.analytics_details : [];
 
-  // Pass through JSON as-is (or raw text wrapper)
-  let body;
-  try {
-    body = JSON.parse(text);
-  } catch {
-    body = { raw: text };
-  }
+  for (const r of [...details1, ...details2]) bump(r?.date_time);
 
-  return new Response(JSON.stringify(body), {
-    status: zoomRes.status,
-    headers: {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-    },
+  const lastAccessDate = last ? String(last).slice(0, 10) : "";
+
+  return json(200, {
+    ok: true,
+    meetingId,
+    plays,
+    downloads,
+    lastAccessDate,
   });
 }
+
 
 /* -------------------- DELETE MEETING RECORDINGS -------------------- */
 
@@ -845,6 +871,14 @@ function json(status, obj) {
   });
 }
 
+/* -------------------- Zoom Meeting ID ENCODING HELPERS -------------------- */
+
+function encodeZoomMeetingId(meetingId) {
+  // Zoom can be picky with meeting UUIDs that contain "/" etc.
+  // Double-encode is the safest default.
+  const raw = String(meetingId || "");
+  return encodeURIComponent(encodeURIComponent(raw));
+}
 
 /* -------------------- ROUTER -------------------- */
 

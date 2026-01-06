@@ -264,6 +264,81 @@ input[type="date"].form-control {
   background: rgba(255,255,255,0.08);
 }
 
+/* Keep table from feeling "scrunched" */
+.table-wrapper {
+  overflow-x: auto;
+}
+
+.rec-table {
+  width: 100%;
+  min-width: 1100px; /* adjust to taste */
+}
+
+/* Files cell stays one line */
+.files-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.files-count {
+  opacity: 0.85;
+}
+
+/* Icon button */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 28px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  cursor: pointer;
+}
+
+.icon-btn:hover {
+  background: rgba(255,255,255,0.10);
+}
+
+/* Dropdown menu */
+.download-menu-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.download-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 180px;
+  padding: 8px;
+  border-radius: 12px;
+  background: rgba(20, 20, 24, 0.98);
+  border: 1px solid rgba(255,255,255,0.12);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.35);
+  z-index: 50;
+}
+
+.download-menu-title {
+  font-size: 12px;
+  opacity: 0.75;
+  padding: 4px 6px 8px 6px;
+}
+
+.download-menu-item {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 10px;
+  text-decoration: none;
+}
+
+.download-menu-item:hover {
+  background: rgba(255,255,255,0.08);
+}
+
 /* Firefox tweak */
 .form-control[type="date"]::-moz-focus-inner {
   border: 0;

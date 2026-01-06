@@ -1,13 +1,7 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import type { OwnerGroup, PageRecord } from "../hooks/useOwnerGroups";
-import type { Recording } from "../types";
+import type { Recording, MeetingAnalyticsStats } from "../types";
 import { formatBytes } from "../utils/recordingFormatters";
-
-export type MeetingAnalytics = {
-  plays: number; // views_total_count
-  downloads: number; // downloads_total_count
-  lastAccessDate: string; // YYYY-MM-DD (or "" if never accessed)
-};
 
 export type RecordingsTableProps = {
   ownerGroups: OwnerGroup[];
@@ -22,61 +16,24 @@ export type RecordingsTableProps = {
   allOnPageSelected: boolean;
   demoMode: boolean;
 
-  /** NEW: meetingId -> analytics stats */
-  analyticsByMeetingId: Record<string, import("../types").MeetingAnalyticsStats | undefined>;
-
+  // NEW (optional): meeting analytics map
+  analyticsByMeetingId?: Record<string, MeetingAnalyticsStats | undefined>;
 };
 
-function FilesDropdown({
-  label,
-  items,
-}: {
-  label: React.ReactNode;
-  items: Array<{ label: string; href: string }>;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    const onDoc = (e: MouseEvent) => {
-      if (!ref.current) return;
-      if (!ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, []);
-
-  if (!items.length) return <>{label}</>;
-
-  return (
-    <div className="files-dd" ref={ref}>
-      <button
-        type="button"
-        className="files-dd-btn"
-        onClick={() => setOpen((v) => !v)}
-      >
-        {label} <span className="files-dd-caret">▾</span>
-      </button>
-
-      {open && (
-        <div className="files-dd-menu">
-          {items.map((it) => (
-            <a
-              key={it.href}
-              className="files-dd-item"
-              href={it.href}
-              target="_blank"
-              rel="noreferrer"
-              onClick={() => setOpen(false)}
-            >
-              {it.label}
-            </a>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+const DownloadIcon: React.FC = () => (
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    aria-hidden="true"
+    focusable="false"
+  >
+    <path
+      fill="currentColor"
+      d="M12 3a1 1 0 0 1 1 1v8.59l2.3-2.3a1 1 0 1 1 1.4 1.42l-4.01 4.01a1.2 1.2 0 0 1-1.38.22a1.2 1.2 0 0 1-.22-.22L7.08 11.7a1 1 0 1 1 1.42-1.4L11 12.8V4a1 1 0 0 1 1-1ZM5 19a1 1 0 0 1 1-1h12a1 1 0 1 1 0 2H6a1 1 0 0 1-1-1Z"
+    />
+  </svg>
+);
 
 const RecordingsTable: React.FC<RecordingsTableProps> = ({
   ownerGroups,
@@ -90,8 +47,29 @@ const RecordingsTable: React.FC<RecordingsTableProps> = ({
   selectAllOnPage,
   allOnPageSelected,
   demoMode,
-  analyticsByMeetingId = {},
+  analyticsByMeetingId,
 }) => {
+  // one open menu at a time (by row key)
+  const [openMenuKey, setOpenMenuKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      // if you click anywhere outside a menu/button, close
+      // (menus/buttons stopPropagation below)
+      setOpenMenuKey(null);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpenMenuKey(null);
+    };
+
+    document.addEventListener("click", onDocClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("click", onDocClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, []);
+
   return (
     <div className="table-wrapper">
       <table className="rec-table">
@@ -107,13 +85,15 @@ const RecordingsTable: React.FC<RecordingsTableProps> = ({
             <th>Date / Time</th>
             <th>Primary</th>
             <th>Owner / Host</th>
+
             <th>Files</th>
             <th>Size</th>
 
-            {/* NEW analytics columns */}
+            {/* NEW columns (optional, meetings only) */}
             <th>Plays</th>
             <th>Downloads</th>
             <th>Last access</th>
+
             <th>Auto-delete date</th>
           </tr>
         </thead>
@@ -141,8 +121,6 @@ const RecordingsTable: React.FC<RecordingsTableProps> = ({
                       }
                     />
                   </td>
-
-                  {/* UPDATED colSpan: total columns = 10, first checkbox column already used, so span the remaining 9 */}
                   <td colSpan={9}>
                     <button
                       type="button"
@@ -163,7 +141,7 @@ const RecordingsTable: React.FC<RecordingsTableProps> = ({
                 {/* Child rows */}
                 {!collapsed &&
                   group.items.map(({ rec, globalIndex }: PageRecord) => {
-                    const key = makeRecordKey(rec, globalIndex);
+                    const rowKey = makeRecordKey(rec, globalIndex);
                     const isMeeting = rec.source === "meetings";
 
                     const dt = rec.date_time
@@ -196,157 +174,162 @@ const RecordingsTable: React.FC<RecordingsTableProps> = ({
 
                     const sizeDisplay = formatBytes(rec.file_size);
 
-                    // Files display
-                    let filesDisplay: React.ReactNode = "—";
+                    // --- analytics (meetings only) ---
+                    const meetingId = (rec as any).meetingId || "";
+                    const stats = isMeeting
+                      ? analyticsByMeetingId?.[meetingId]
+                      : undefined;
+
+                    const plays = isMeeting ? (stats?.plays ?? undefined) : undefined;
+                    const downloads = isMeeting
+                      ? (stats?.downloads ?? undefined)
+                      : undefined;
+                    const lastAccessDate = isMeeting
+                      ? (stats?.lastAccessDate ?? "")
+                      : "";
+
+                    // --- files menu (single icon; popout menu) ---
+                    const files = isMeeting ? rec.recording_files ?? [] : [];
+                    const fileCount = isMeeting
+                      ? rec.files_count ?? files.length
+                      : rec.download_url
+                      ? 1
+                      : 0;
+
+                    const fileLinks = useMemo(() => {
+                      if (!isMeeting) return [];
+
+                      const seenTypes = new Set<string>();
+                      const out: Array<{ label: string; href: string }> = [];
+
+                      for (const f of files) {
+                        const t = (f.file_type || "FILE").toUpperCase();
+                        if (!f.download_url || seenTypes.has(t)) continue;
+                        seenTypes.add(t);
+
+                        const safeTopic = (rec.topic || rec.caller_name || "meeting")
+                          .toLowerCase()
+                          .replace(/[^a-z0-9_\-]+/g, "_")
+                          .slice(0, 40);
+
+                        const dtPart = f.recording_start
+                          ? new Date(f.recording_start)
+                              .toISOString()
+                              .slice(0, 19)
+                              .replace(/[:T]/g, "-")
+                          : rec.date_time
+                          ? new Date(rec.date_time)
+                              .toISOString()
+                              .slice(0, 19)
+                              .replace(/[:T]/g, "-")
+                          : "recording";
+
+                        const ext =
+                          (f.file_extension || f.file_type || "").toLowerCase() ||
+                          "dat";
+
+                        const filename = `${safeTopic}_${dtPart}.${ext}`;
+
+                        const href = `/api/meeting/recordings/download?url=${encodeURIComponent(
+                          f.download_url
+                        )}&filename=${encodeURIComponent(filename)}`;
+
+                        out.push({ label: t, href });
+                      }
+
+                      return out;
+                      // eslint-disable-next-line react-hooks/exhaustive-deps
+                    }, [isMeeting, files, rec.topic, rec.caller_name, rec.date_time]);
+
+                    let filesCell: React.ReactNode = "—";
 
                     if (isMeeting) {
-                      const files = rec.recording_files ?? [];
-                      const fileCount = rec.files_count ?? files.length;
+                      filesCell = fileCount ? (
+                        <div className="files-cell">
+                          <span className="files-count">
+                            {fileCount} file{fileCount !== 1 ? "s" : ""}
+                          </span>
 
-                      if (fileCount > 0) {
-                        const seenTypes = new Set<string>();
-                        const fileLinks: React.ReactNode[] = [];
+                          {fileLinks.length > 0 && !demoMode && (
+                            <div
+                              className="download-menu-wrap"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <button
+                                type="button"
+                                className="icon-btn"
+                                aria-label="Download files"
+                                title="Download files"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOpenMenuKey((k) => (k === rowKey ? null : rowKey));
+                                }}
+                              >
+                                <DownloadIcon />
+                              </button>
 
-                        for (const f of files) {
-                          const t = (f.file_type || "FILE").toUpperCase();
-                          if (!f.download_url || seenTypes.has(t)) continue;
-                          seenTypes.add(t);
-
-                          const safeTopic = (rec.topic || rec.caller_name || "meeting")
-                            .toLowerCase()
-                            .replace(/[^a-z0-9_\-]+/g, "_")
-                            .slice(0, 40);
-
-                          const dtPart = f.recording_start
-                            ? new Date(f.recording_start)
-                                .toISOString()
-                                .slice(0, 19)
-                                .replace(/[:T]/g, "-")
-                            : rec.date_time
-                            ? new Date(rec.date_time)
-                                .toISOString()
-                                .slice(0, 19)
-                                .replace(/[:T]/g, "-")
-                            : "recording";
-
-                          const ext =
-                            (f.file_extension || f.file_type || "").toLowerCase() ||
-                            "dat";
-
-                          const filename = `${safeTopic}_${dtPart}.${ext}`;
-
-                          const href = `/api/meeting/recordings/download?url=${encodeURIComponent(
-                            f.download_url
-                          )}&filename=${encodeURIComponent(filename)}`;
-
-                          fileLinks.push(
-                            <a key={t} href={href} className="file-pill">
-                              {t}
-                            </a>
-                          );
-                        }
-
-                        if (isMeeting) {
-                          const files = rec.recording_files ?? [];
-                          const fileCount = rec.files_count ?? files.length;
-
-                          if (fileCount > 0) {
-                            const seen = new Set<string>();
-                            const menuItems: Array<{ label: string; href: string }> = [];
-
-                            for (const f of files) {
-                              const t = (f.file_type || "FILE").toUpperCase();
-                              if (!f.download_url) continue;
-
-                              // If you want duplicates (e.g. multiple MP4s), remove this check.
-                              if (seen.has(t)) continue;
-                              seen.add(t);
-
-                              const safeTopic = (rec.topic || rec.caller_name || "meeting")
-                                .toLowerCase()
-                                .replace(/[^a-z0-9_\-]+/g, "_")
-                                .slice(0, 40);
-
-                              const dtPart = f.recording_start
-                                ? new Date(f.recording_start).toISOString().slice(0, 19).replace(/[:T]/g, "-")
-                                : rec.date_time
-                                ? new Date(rec.date_time).toISOString().slice(0, 19).replace(/[:T]/g, "-")
-                                : "recording";
-
-                              const ext = ((f.file_extension || f.file_type || "").toLowerCase() || "dat");
-                              const filename = `${safeTopic}_${dtPart}.${ext}`;
-
-                              const href = `/api/meeting/recordings/download?url=${encodeURIComponent(
-                                f.download_url
-                              )}&filename=${encodeURIComponent(filename)}`;
-
-                              menuItems.push({ label: t, href });
-                            }
-
-                            filesDisplay = (
-                              <FilesDropdown
-                                label={
-                                  <>
-                                    {fileCount} file{fileCount !== 1 ? "s" : ""} · Download
-                                  </>
-                                }
-                                items={menuItems}
-                              />
-                            );
-                          }
-                        }
-                      }
+                              {openMenuKey === rowKey && (
+                                <div
+                                  className="download-menu"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <div className="download-menu-title">
+                                    Download files
+                                  </div>
+                                  {fileLinks.map((l) => (
+                                    <a
+                                      key={l.label}
+                                      className="download-menu-item"
+                                      href={l.href}
+                                    >
+                                      {l.label}
+                                    </a>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        "—"
+                      );
                     } else {
                       if (rec.download_url && !demoMode) {
                         const href = `/api/phone/recordings/download?url=${encodeURIComponent(
                           rec.download_url
                         )}`;
-                        filesDisplay = (
-                          <a href={href} className="file-pill">
-                            RECORDING
+                        filesCell = (
+                          <a href={href} className="text-sky-400 hover:underline">
+                            Recording
                           </a>
                         );
                       }
                     }
 
-                    // Auto-delete date: only show date if present
                     const autoDeleteDate =
                       (rec as any).autoDeleteDate ??
                       (rec as any).auto_delete_date ??
                       "";
 
-                    // NEW: analytics (meetings only)
-                    const meetingId = isMeeting
-                      ? String((rec as any).meetingId ?? "")
-                      : "";
-                    const stats = isMeeting && meetingId ? analyticsByMeetingId[meetingId] : undefined;
-
-                    const playsDisplay =
-                      isMeeting ? (stats ? String(stats.plays ?? 0) : "…") : "—";
-                    const downloadsDisplay =
-                      isMeeting ? (stats ? String(stats.downloads ?? 0) : "…") : "—";
-                    const lastAccessDisplay =
-                      isMeeting ? (stats ? (stats.lastAccessDate || "—") : "…") : "—";
-
                     return (
-                      <tr key={key} className="rec-row">
+                      <tr key={rowKey} className="rec-row">
                         <td>
                           <input
                             type="checkbox"
-                            checked={selectedKeys.has(key)}
+                            checked={selectedKeys.has(rowKey)}
                             onChange={() => toggleRowSelection(rec, globalIndex)}
                           />
                         </td>
                         <td>{dateDisplay}</td>
                         <td>{primary}</td>
                         <td>{ownerDisplay}</td>
-                        <td>{filesDisplay}</td>
+
+                        <td>{filesCell}</td>
                         <td>{sizeDisplay}</td>
 
-                        {/* NEW analytics cells */}
-                        <td>{playsDisplay}</td>
-                        <td>{downloadsDisplay}</td>
-                        <td>{lastAccessDisplay}</td>
+                        <td>{isMeeting ? (plays ?? "—") : ""}</td>
+                        <td>{isMeeting ? (downloads ?? "—") : ""}</td>
+                        <td>{isMeeting ? (lastAccessDate || "—") : ""}</td>
 
                         <td>{isMeeting && autoDeleteDate ? autoDeleteDate : ""}</td>
                       </tr>
