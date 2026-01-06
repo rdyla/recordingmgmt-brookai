@@ -54,7 +54,8 @@ body {
 }
 
 .app-main-inner {
-  max-width: 1280px;
+  width:100%;
+  max-width: none;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -83,9 +84,10 @@ body {
 .table-wrapper {
   margin-top: 4px;
   flex: 1 1 auto;  /* take remaining height in card */
+  width:100%;
   min-height: 0;
   max-height: 100%;
-  overflow: auto;  /* scroll inside the card */
+  overflow-x: auto;  /* scroll inside the card */
 }
 
 /* Table: fills width, can grow horizontally, no squish */
@@ -94,7 +96,7 @@ body {
   font-size: 13px;
   width: 100%;
   table-layout: auto;
-  min-width: 900px; /* so columns have breathing room on normal screens */
+  min-width: 1100px; /* so columns have breathing room on normal screens */
 }
 
 .rec-table th,
@@ -214,6 +216,53 @@ input[type="date"].form-control {
   align-items: center;
 }
 
+.files-dd {
+  position: relative;
+  display: inline-block;
+}
+
+.files-dd-btn {
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  text-decoration: underline;
+  white-space: nowrap;
+}
+
+.files-dd-caret {
+  opacity: 0.8;
+  margin-left: 4px;
+}
+
+.files-dd-menu {
+  position: absolute;
+  z-index: 50;
+  top: 100%;
+  left: 0;
+  margin-top: 6px;
+  min-width: 160px;
+  background: #111827;            /* dark */
+  border: 1px solid #374151;      /* subtle border */
+  border-radius: 10px;
+  padding: 6px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+}
+
+.files-dd-item {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: #e5e7eb;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.files-dd-item:hover {
+  background: rgba(255,255,255,0.08);
+}
 
 /* Firefox tweak */
 .form-control[type="date"]::-moz-focus-inner {

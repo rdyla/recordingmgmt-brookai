@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import type { OwnerGroup, PageRecord } from "../hooks/useOwnerGroups";
 import type { Recording } from "../types";
 import { formatBytes } from "../utils/recordingFormatters";
@@ -26,6 +26,57 @@ export type RecordingsTableProps = {
   analyticsByMeetingId: Record<string, import("../types").MeetingAnalyticsStats | undefined>;
 
 };
+
+function FilesDropdown({
+  label,
+  items,
+}: {
+  label: React.ReactNode;
+  items: Array<{ label: string; href: string }>;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (!ref.current) return;
+      if (!ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  if (!items.length) return <>{label}</>;
+
+  return (
+    <div className="files-dd" ref={ref}>
+      <button
+        type="button"
+        className="files-dd-btn"
+        onClick={() => setOpen((v) => !v)}
+      >
+        {label} <span className="files-dd-caret">▾</span>
+      </button>
+
+      {open && (
+        <div className="files-dd-menu">
+          {items.map((it) => (
+            <a
+              key={it.href}
+              className="files-dd-item"
+              href={it.href}
+              target="_blank"
+              rel="noreferrer"
+              onClick={() => setOpen(false)}
+            >
+              {it.label}
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const RecordingsTable: React.FC<RecordingsTableProps> = ({
   ownerGroups,
@@ -195,16 +246,55 @@ const RecordingsTable: React.FC<RecordingsTableProps> = ({
                           );
                         }
 
-                        filesDisplay = (
-                          <>
-                            {fileCount} file{fileCount !== 1 ? "s" : ""}
-                            {fileLinks.length > 0 && (
-                              <span className="files-cell">
-                                {fileLinks}
-                              </span>
-                            )}
-                          </>
-                        );
+                        if (isMeeting) {
+                          const files = rec.recording_files ?? [];
+                          const fileCount = rec.files_count ?? files.length;
+
+                          if (fileCount > 0) {
+                            const seen = new Set<string>();
+                            const menuItems: Array<{ label: string; href: string }> = [];
+
+                            for (const f of files) {
+                              const t = (f.file_type || "FILE").toUpperCase();
+                              if (!f.download_url) continue;
+
+                              // If you want duplicates (e.g. multiple MP4s), remove this check.
+                              if (seen.has(t)) continue;
+                              seen.add(t);
+
+                              const safeTopic = (rec.topic || rec.caller_name || "meeting")
+                                .toLowerCase()
+                                .replace(/[^a-z0-9_\-]+/g, "_")
+                                .slice(0, 40);
+
+                              const dtPart = f.recording_start
+                                ? new Date(f.recording_start).toISOString().slice(0, 19).replace(/[:T]/g, "-")
+                                : rec.date_time
+                                ? new Date(rec.date_time).toISOString().slice(0, 19).replace(/[:T]/g, "-")
+                                : "recording";
+
+                              const ext = ((f.file_extension || f.file_type || "").toLowerCase() || "dat");
+                              const filename = `${safeTopic}_${dtPart}.${ext}`;
+
+                              const href = `/api/meeting/recordings/download?url=${encodeURIComponent(
+                                f.download_url
+                              )}&filename=${encodeURIComponent(filename)}`;
+
+                              menuItems.push({ label: t, href });
+                            }
+
+                            filesDisplay = (
+                              <FilesDropdown
+                                label={
+                                  <>
+                                    {fileCount} file{fileCount !== 1 ? "s" : ""} · Download
+                                  </>
+                                }
+                                items={menuItems}
+                              />
+                            );
+                          }
+                        }
                       }
                     } else {
                       if (rec.download_url && !demoMode) {
