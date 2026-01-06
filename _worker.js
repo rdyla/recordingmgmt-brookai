@@ -845,66 +845,6 @@ function json(status, obj) {
   });
 }
 
-async function handleGetMeetingRecordingAnalyticsSummary(req, env) {
-  try {
-    const url = new URL(req.url);
-    const meetingId = url.searchParams.get("meetingId") || "";
-    const from = url.searchParams.get("from") || "";
-    const to = url.searchParams.get("to") || "";
-
-    if (!meetingId) return json(400, { error: "Missing meetingId" });
-    if (!from || !to) return json(400, { error: "Missing from/to" });
-
-    const token = await getZoomAccessToken(env);
-
-    const meetingPathId = encodeZoomMeetingIdForPath(meetingId);
-
-    const zoomUrl = new URL(
-      `${ZOOM_API_BASE}/meetings/${meetingPathId}/recordings/analytics_summary`
-    );
-    zoomUrl.searchParams.set("from", from);
-    zoomUrl.searchParams.set("to", to);
-
-    const zoomRes = await fetch(zoomUrl.toString(), {
-      method: "GET",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    const text = await zoomRes.text();
-    let body;
-    try {
-      body = text ? JSON.parse(text) : {};
-    } catch {
-      body = { raw: text };
-    }
-
-    if (!zoomRes.ok) {
-      console.log("ANALYTICS SUMMARY non-OK", {
-        status: zoomRes.status,
-        zoomUrl: zoomUrl.toString(),
-        body: (text || "").slice(0, 500),
-      });
-
-      return json(zoomRes.status, {
-        error: true,
-        zoomStatus: zoomRes.status,
-        raw: body,
-      });
-    }
-
-    const summary = summarizeAnalyticsSummary(body);
-
-    return json(200, {
-      ok: true,
-      meetingId,
-      from: body?.from ?? from,
-      to: body?.to ?? to,
-      ...summary,
-    });
-  } catch (e) {
-    return json(500, { error: true, message: e?.message || String(e) });
-  }
-}
 
 /* -------------------- ROUTER -------------------- */
 
