@@ -53,9 +53,7 @@ const RecordingsTable: React.FC<RecordingsTableProps> = ({
   const [openMenuKey, setOpenMenuKey] = useState<string | null>(null);
 
   useEffect(() => {
-    const onDocClick = (e: MouseEvent) => {
-      // if you click anywhere outside a menu/button, close
-      // (menus/buttons stopPropagation below)
+    const onDocClick = () => {
       setOpenMenuKey(null);
     };
     const onKey = (e: KeyboardEvent) => {
@@ -196,7 +194,7 @@ const RecordingsTable: React.FC<RecordingsTableProps> = ({
                       ? 1
                       : 0;
 
-                    const fileLinks = useMemo(() => {
+                    const fileLinks = (() => {
                       if (!isMeeting) return [];
 
                       const seenTypes = new Set<string>();
@@ -225,8 +223,7 @@ const RecordingsTable: React.FC<RecordingsTableProps> = ({
                           : "recording";
 
                         const ext =
-                          (f.file_extension || f.file_type || "").toLowerCase() ||
-                          "dat";
+                          (f.file_extension || f.file_type || "").toLowerCase() || "dat";
 
                         const filename = `${safeTopic}_${dtPart}.${ext}`;
 
@@ -238,8 +235,7 @@ const RecordingsTable: React.FC<RecordingsTableProps> = ({
                       }
 
                       return out;
-                      // eslint-disable-next-line react-hooks/exhaustive-deps
-                    }, [isMeeting, files, rec.topic, rec.caller_name, rec.date_time]);
+                    })();
 
                     let filesCell: React.ReactNode = "—";
 
