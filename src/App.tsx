@@ -480,36 +480,44 @@ const fetchMeetingAnalyticsSummary = useCallback(
     return { total, done, failed, downloading, queued };
   }, [ccQueue]);
 
-  const downloadQueueItem = useCallback(async (item: CCQueueItem) => {
-    const href =
-      `/api/contact_center/recordings/download?url=${encodeURIComponent(item.url)}` +
-      `&filename=${encodeURIComponent(item.filename)}`;
+    const downloadQueueItem = useCallback(async (item: CCQueueItem) => {
+      const href =
+        `/api/contact_center/recordings/download?url=${encodeURIComponent(item.url)}` +
+        `&filename=${encodeURIComponent(item.filename)}`;
 
-    const res = await fetch(href);
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      throw new Error(`HTTP ${res.status}${text ? `: ${text.slice(0, 120)}` : ""}`);
-    }
+      const res = await fetch(href);
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        const err: any = new Error(
+          `HTTP ${res.status}${text ? `: ${text.slice(0, 120)}` : ""}`
+        );
+        err.status = res.status;
+        throw err;
+      }
 
-    const blob = await res.blob();
-    const blobUrl = URL.createObjectURL(blob);
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
 
-    const a = document.createElement("a");
-    a.href = blobUrl;
-    a.download = item.filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = item.filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
 
-    /* quick check if queue running */
-    console.log("QUEUE DOWNLOAD", item.key, item.url);
+      URL.revokeObjectURL(blobUrl);
+    }, []);
 
-    URL.revokeObjectURL(blobUrl);
-  }, []);
+
 
         const runCcQueue = useCallback(async () => {
         if (demoMode) return;
         if (ccQueueRunningRef.current) return;
+
+
+        const MAX_ATTEMPTS = 3;
+        const isFatalStatus = (code?: number) =>
+          code === 404 || code === 401 || code === 403;
 
         // IMPORTANT: set ref immediately so the while loop can run
         ccQueueRunningRef.current = true;
@@ -518,31 +526,54 @@ const fetchMeetingAnalyticsSummary = useCallback(
         try {
           while (ccQueueRunningRef.current) {
             const next = ccQueueRef.current.find(
-              (x) => x.status === "queued" || x.status === "failed"
+              (x) => x.status === "queued" 
             );
+
             if (!next) break;
 
+           setCcQueue((prev) =>
+            prev.map((x) =>
+              x.key === next.key
+                ? { ...x, status: "downloading", error: undefined }
+                : x
+            )
+          );
+
+          try {
+            await downloadQueueItem(next);
             setCcQueue((prev) =>
               prev.map((x) =>
-                x.key === next.key ? { ...x, status: "downloading", error: undefined } : x
+                x.key === next.key
+                  ? { ...x, status: "done", lastStatusCode: undefined }
+                  : x
               )
             );
+          } catch (e: any) {
+            const code = Number(e?.status || 0) || undefined;
 
-            try {
-              await downloadQueueItem(next);
+            setCcQueue((prev) =>
+              prev.map((x) => {
+                if (x.key !== next.key) return x;
 
-              setCcQueue((prev) =>
-                prev.map((x) => (x.key === next.key ? { ...x, status: "done" } : x))
-              );
-            } catch (e: any) {
-              setCcQueue((prev) =>
-                prev.map((x) =>
-                  x.key === next.key
-                    ? { ...x, status: "failed", error: e?.message || String(e) }
-                    : x
-                )
-              );
-            }
+                const attempts = (x.attempts ?? 0) + 1;
+                const fatal = isFatalStatus(code);
+                const maxed = attempts >= MAX_ATTEMPTS;
+
+                return {
+                  ...x,
+                  attempts,
+                  lastStatusCode: code,
+                  status: "failed", // IMPORTANT: stay failed; don’t re-queue automatically
+                  error:
+                    (fatal
+                      ? `Fatal (${code})`
+                      : maxed
+                        ? `Max retries reached`
+                        : `Failed`) + `: ${e?.message || String(e)}`,
+                };
+              })
+            );
+          }
 
             await new Promise((r) => setTimeout(r, 250));
           }
