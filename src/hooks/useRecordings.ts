@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type {
   ApiResponse,
   MeetingApiResponse,
-  ContactCenterApiResponse,   // NEW
+  ContactCenterApiResponse,
   Recording,
   SourceFilter,
 } from "../types";
@@ -17,7 +17,8 @@ const fetchJson = async <T,>(url: string) => {
   return (await res.json()) as T;
 };
 
-const MAX_PHONE_PAGES = 20; // safety cap in case of huge date ranges
+const MAX_PHONE_PAGES = 20; // safety cap
+const MAX_CC_PAGES = 50; // safety cap
 
 const useRecordings = (
   from: string,
@@ -30,184 +31,131 @@ const useRecordings = (
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // we still respect pageSize for Zoom, but we’ll chain pages
+  // Zoom caps differ by endpoint; keep it bounded
   const zoomPageSize = Math.min(pageSize || 100, 300);
 
-  const fetchAllPhoneRecordings = useCallback(
-    async () => {
-      const allRecs: Recording[] = [];
-      let nextToken: string | null = null;
-      let loops = 0;
-      let apiFrom: string | undefined;
-      let apiTo: string | undefined;
+  // ---------------- PHONE (paged) ----------------
+  const fetchAllPhoneRecordings = useCallback(async () => {
+    const allRecs: Recording[] = [];
+    let nextToken: string | null = null;
+    let loops = 0;
 
-      do {
-        const params = new URLSearchParams();
-        params.set("from", from);
-        params.set("to", to);
-        params.set("page_size", String(zoomPageSize));
-        params.set("query_date_type", "start_time");
-        if (nextToken) {
-          params.set("next_page_token", nextToken);
-        }
+    let apiFrom: string | undefined;
+    let apiTo: string | undefined;
 
-        const apiPage = await fetchJson<ApiResponse>(
-          `/api/phone/recordings?${params.toString()}`
-        );
-
-        const recs: Recording[] = (apiPage.recordings ?? []).map((r) => ({
-          ...r,
-          source: "phone" as const,
-        }));
-
-        apiFrom = apiFrom ?? apiPage.from ?? from;
-        apiTo = apiPage.to ?? apiTo ?? to;
-
-        allRecs.push(...recs);
-        nextToken = apiPage.next_page_token ?? null;
-        loops += 1;
-      } while (nextToken && loops < MAX_PHONE_PAGES);
-
-      return {
-        from: apiFrom ?? from,
-        to: apiTo ?? to,
-        recordings: allRecs,
-      };
-    },
-    [from, to, zoomPageSize]
-  );
-
-  
-
-
-  const fetchAllMeetingRecordings = useCallback(
-    async () => {
+    do {
       const params = new URLSearchParams();
       params.set("from", from);
       params.set("to", to);
-      // page_size is mostly ignored by backend aggregation, but harmless
       params.set("page_size", String(zoomPageSize));
+      params.set("query_date_type", "start_time");
+      if (nextToken) params.set("next_page_token", nextToken);
 
-      const api = await fetchJson<MeetingApiResponse>(
-        `/api/meeting/recordings?${params.toString()}`
+      const apiPage = await fetchJson<ApiResponse>(
+        `/api/phone/recordings?${params.toString()}`
       );
 
-      console.debug("Meeting API raw sample", {
-        from: api.from,
-        to: api.to,
-        count: api.meetings?.length ?? 0,
-        first: api.meetings?.[0],
-      });
+      const recs: Recording[] = (apiPage.recordings ?? []).map((r) => ({
+        ...r,
+        source: "phone" as const,
+      }));
 
-      const recs: Recording[] = [];
+      apiFrom = apiFrom ?? apiPage.from ?? from;
+      apiTo = apiPage.to ?? apiTo ?? to;
 
-      for (const m of api.meetings ?? []) {
-        const mm: any = m;
+      allRecs.push(...recs);
+      nextToken = apiPage.next_page_token ?? null;
+      loops += 1;
+    } while (nextToken && loops < MAX_PHONE_PAGES);
 
-        const hostEmail: string =
-          mm.hostEmail ||
-          mm.host_email ||
-          mm.owner_email ||
-          "";
+    return { from: apiFrom ?? from, to: apiTo ?? to, recordings: allRecs };
+  }, [from, to, zoomPageSize]);
 
-        const hostName: string =
-          mm.hostName ||
-          mm.owner_name ||
-          hostEmail ||
-          mm.topic ||
-          "Unknown";
+  // ---------------- MEETINGS (aggregated by worker) ----------------
+  const fetchAllMeetingRecordings = useCallback(async () => {
+    const params = new URLSearchParams();
+    params.set("from", from);
+    params.set("to", to);
+    params.set("page_size", String(zoomPageSize));
 
-        const files = Array.isArray(m.recording_files)
-          ? m.recording_files
-          : [];
+    const api = await fetchJson<MeetingApiResponse>(
+      `/api/meeting/recordings?${params.toString()}`
+    );
 
-        let firstStartIso: string | undefined = undefined;
-        const starts: Date[] = [];
+    const recs: Recording[] = [];
 
-        for (const f of files) {
-          if (f.recording_start) {
-            const d = new Date(f.recording_start);
-            if (!isNaN(d.getTime())) {
-              starts.push(d);
-            }
-          }
+    for (const m of api.meetings ?? []) {
+      const mm: any = m;
+
+      const hostEmail: string = mm.hostEmail || mm.host_email || mm.owner_email || "";
+      const hostName: string =
+        mm.hostName || mm.owner_name || hostEmail || mm.topic || "Unknown";
+
+      const files = Array.isArray(m.recording_files) ? m.recording_files : [];
+
+      // Use earliest recording_start as the row’s date_time
+      const starts: Date[] = [];
+      for (const f of files) {
+        if (f.recording_start) {
+          const d = new Date(f.recording_start);
+          if (!isNaN(d.getTime())) starts.push(d);
         }
-
-        if (starts.length) {
-          starts.sort((a, b) => a.getTime() - b.getTime());
-          firstStartIso = starts[0].toISOString();
-        }
-
-        const totalSizeBytes = files.reduce((acc, f) => {
-          const sz =
-            typeof f.file_size === "number" && !isNaN(f.file_size)
-              ? f.file_size
-              : 0;
-          return acc + sz;
-        }, 0);
-
-        const fileTypes = Array.from(
-          new Set(
-            files
-              .map((f) => f.file_type || "")
-              .filter((s) => typeof s === "string" && s.length > 0)
-          )
-        );
-
-        recs.push({
-          id: m.uuid || String(m.id),
-          caller_number: "",
-          caller_number_type: 0,
-          callee_number: "",
-          callee_number_type: 0,
-          date_time: firstStartIso || m.start_time,
-          end_time: undefined,
-          duration: m.duration ?? 0,
-          recording_type: "Meeting",
-          download_url: undefined,
-          caller_name: m.topic,
-          callee_name: hostEmail || hostName,
-          owner: {
-            type: "user",
-            id: m.host_id,
-            name: hostName || hostEmail || "Unknown",
-          },
-          site: { id: "", name: "Meeting" },
-          direction: "meeting",
-          disclaimer_status: undefined,
-          source: "meetings",
-          topic: m.topic,
-          host_name: hostName,
-          host_email: hostEmail,
-          meetingId: m.uuid,
-          file_size: totalSizeBytes || undefined,
-          recording_files: files,
-          files_count: files.length,
-          files_types: fileTypes,
-          // auto-delete info (if your worker passes it through)
-          autoDelete: (mm as any).autoDelete ?? (mm as any).auto_delete,
-          autoDeleteDate:
-            (mm as any).autoDeleteDate ?? (mm as any).auto_delete_date,
-        } as Recording & {
-          autoDelete?: boolean | null;
-          autoDeleteDate?: string | null;
-        });
       }
+      starts.sort((a, b) => a.getTime() - b.getTime());
+      const firstStartIso = starts.length ? starts[0].toISOString() : undefined;
 
-      return {
-        from: api.from ?? from,
-        to: api.to ?? to,
-        recordings: recs,
-      };
-    },
-    [from, to, zoomPageSize]
-  );
+      const totalSizeBytes = files.reduce((acc, f) => {
+        const sz = typeof f.file_size === "number" && !isNaN(f.file_size) ? f.file_size : 0;
+        return acc + sz;
+      }, 0);
 
-const MAX_CC_PAGES = 50; // safety cap (adjust if you want)
+      const fileTypes = Array.from(
+        new Set(
+          files
+            .map((f) => f.file_type || "")
+            .filter((s) => typeof s === "string" && s.length > 0)
+        )
+      );
 
-const useRecordings = (from: string, to: string, pageSize: number, source: SourceFilter, demoMode: boolean) => {
-  // ...
+      recs.push({
+        id: m.uuid || String(m.id),
+        caller_number: "",
+        caller_number_type: 0,
+        callee_number: "",
+        callee_number_type: 0,
+        date_time: firstStartIso || m.start_time,
+        end_time: undefined,
+        duration: m.duration ?? 0,
+        recording_type: "Meeting",
+        download_url: undefined,
+        caller_name: m.topic,
+        callee_name: hostEmail || hostName,
+        owner: {
+          type: "user",
+          id: m.host_id,
+          name: hostName || hostEmail || "Unknown",
+        },
+        site: { id: "", name: "Meeting" },
+        direction: "meeting",
+        disclaimer_status: undefined,
+        source: "meetings",
+        topic: m.topic,
+        host_name: hostName,
+        host_email: hostEmail,
+        meetingId: m.uuid,
+        file_size: totalSizeBytes || undefined,
+        recording_files: files,
+        files_count: files.length,
+        files_types: fileTypes,
+        autoDelete: (mm as any).autoDelete ?? (mm as any).auto_delete,
+        autoDeleteDate: (mm as any).autoDeleteDate ?? (mm as any).auto_delete_date,
+      } as any);
+    }
 
+    return { from: api.from ?? from, to: api.to ?? to, recordings: recs };
+  }, [from, to, zoomPageSize]);
+
+  // ---------------- CONTACT CENTER (paged) ----------------
   const fetchAllContactCenterRecordings = useCallback(async () => {
     const allRecs: Recording[] = [];
     let nextToken: string | null = null;
@@ -233,11 +181,9 @@ const useRecordings = (from: string, to: string, pageSize: number, source: Sourc
       const recs: Recording[] = (apiPage.recordings ?? []).map((r) => {
         const firstConsumer = (r.consumers && r.consumers[0]) || undefined;
 
-        // caller = consumers[0]
         const callerName = firstConsumer?.consumer_name || "";
         const callerNum = firstConsumer?.consumer_number || "";
 
-        // agent = display_name / user_email
         const agentName = r.display_name || "";
         const agentEmail = r.user_email || "";
 
@@ -245,31 +191,31 @@ const useRecordings = (from: string, to: string, pageSize: number, source: Sourc
         const end = r.recording_end_time || "";
 
         return {
-          id: r.recording_id, // app-wide unique id
-          source: "cc",
+          id: r.recording_id,
+          source: "cc" as const,
 
-          // use existing columns in your table UX:
           date_time: start || end || new Date().toISOString(),
           end_time: end || undefined,
           duration: r.recording_duration ?? 0,
 
-          // show caller in Primary, agent in Owner/Host (like you requested)
+          // caller in Primary (caller_name/caller_number),
+          // agent shown via cc_agent_* (your table uses these)
           caller_name: callerName || undefined,
           caller_number: callerNum || undefined,
           callee_name: agentName || agentEmail || undefined,
 
-          direction: r.direction || "cc",
+          direction: (r.direction as any) || "cc",
           recording_type: r.recording_type || "Contact Center",
 
           owner: {
-            type: r.owner_type || "queue",
+            type: (r.owner_type as any) || "queue",
             id: r.owner_id || r.cc_queue_id || "",
             name: agentName || agentEmail || "Agent",
           },
 
           site: { id: r.cc_queue_id || "", name: r.queue_name || "CC" },
 
-          // CC-specific convenience fields
+          // CC convenience fields used by your table menu builder
           cc_recording_id: r.recording_id,
           cc_download_url: r.download_url,
           cc_transcript_url: r.transcript_url,
@@ -282,7 +228,7 @@ const useRecordings = (from: string, to: string, pageSize: number, source: Sourc
           cc_consumer_number: callerNum || undefined,
           cc_agent_name: agentName || undefined,
           cc_agent_email: agentEmail || undefined,
-        } as Recording;
+        } as any;
       });
 
       allRecs.push(...recs);
@@ -293,6 +239,7 @@ const useRecordings = (from: string, to: string, pageSize: number, source: Sourc
     return { from: apiFrom ?? from, to: apiTo ?? to, recordings: allRecs };
   }, [from, to, zoomPageSize]);
 
+  // ---------------- MAIN FETCH ----------------
   const fetchRecordings = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -300,21 +247,50 @@ const useRecordings = (from: string, to: string, pageSize: number, source: Sourc
     try {
       if (demoMode) {
         const recs = generateDemoRecordings(from, to);
-        setData({ from, to, total_records: recs.length, next_page_token: null, recordings: recs });
+        setData({
+          from,
+          to,
+          total_records: recs.length,
+          next_page_token: null,
+          recordings: recs,
+        });
         return;
       }
 
       if (source === "phone") {
         const { from: apiFrom, to: apiTo, recordings } = await fetchAllPhoneRecordings();
-        setData({ from: apiFrom, to: apiTo, total_records: recordings.length, next_page_token: null, recordings });
-      } else if (source === "meetings") {
-        const { from: apiFrom, to: apiTo, recordings } = await fetchAllMeetingRecordings();
-        setData({ from: apiFrom, to: apiTo, total_records: recordings.length, next_page_token: null, recordings });
-      } else {
-        // NEW: Contact Center
-        const { from: apiFrom, to: apiTo, recordings } = await fetchAllContactCenterRecordings();
-        setData({ from: apiFrom, to: apiTo, total_records: recordings.length, next_page_token: null, recordings });
+        setData({
+          from: apiFrom,
+          to: apiTo,
+          total_records: recordings.length,
+          next_page_token: null,
+          recordings,
+        });
+        return;
       }
+
+      if (source === "meetings") {
+        const { from: apiFrom, to: apiTo, recordings } = await fetchAllMeetingRecordings();
+        setData({
+          from: apiFrom,
+          to: apiTo,
+          total_records: recordings.length,
+          next_page_token: null,
+          recordings,
+        });
+        return;
+      }
+
+      // NEW: contact center
+      const { from: apiFrom, to: apiTo, recordings } =
+        await fetchAllContactCenterRecordings();
+      setData({
+        from: apiFrom,
+        to: apiTo,
+        total_records: recordings.length,
+        next_page_token: null,
+        recordings,
+      });
     } catch (e: any) {
       console.error(e);
       setError(e?.message || String(e));
@@ -330,62 +306,6 @@ const useRecordings = (from: string, to: string, pageSize: number, source: Sourc
     fetchAllMeetingRecordings,
     fetchAllContactCenterRecordings,
   ]);
-
-  // ...
-};
-
-
-
-  const fetchRecordings = useCallback(
-    async () => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        if (demoMode) {
-          const recs = generateDemoRecordings(from, to);
-          setData({
-            from,
-            to,
-            total_records: recs.length,
-            next_page_token: null,
-            recordings: recs,
-          });
-          return;
-        }
-
-        if (source === "phone") {
-          const { from: apiFrom, to: apiTo, recordings } =
-            await fetchAllPhoneRecordings();
-
-          setData({
-            from: apiFrom,
-            to: apiTo,
-            total_records: recordings.length,
-            next_page_token: null,
-            recordings,
-          });
-        } else {
-          const { from: apiFrom, to: apiTo, recordings } =
-            await fetchAllMeetingRecordings();
-
-          setData({
-            from: apiFrom,
-            to: apiTo,
-            total_records: recordings.length,
-            next_page_token: null,
-            recordings,
-          });
-        }
-      } catch (e: any) {
-        console.error(e);
-        setError(e?.message || String(e));
-      } finally {
-        setLoading(false);
-      }
-    },
-    [demoMode, fetchAllMeetingRecordings, fetchAllPhoneRecordings, from, source, to]
-  );
 
   const handleSearch = useCallback(() => {
     fetchRecordings();

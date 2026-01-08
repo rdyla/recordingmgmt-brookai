@@ -68,7 +68,7 @@ export type Recording = {
   file_size?: number;
 
   // extras
-  source?: RecordingSource;
+  source: RecordingSource;
   topic?: string;
   host_name?: string;
   host_email?: string;
