@@ -257,6 +257,7 @@ const fetchMeetingAnalyticsSummary = useCallback(
     [matchesQuery, recordings, source, autoDeleteFilter]
   );
 
+  const activeItem = useMemo( () => ccQueue.find((x) => x.status === "downloading") || null, [ccQueue] );
   const effectivePageSize = pageSize || 100;
   const totalFiltered = filteredRecordings.length;
   const totalPages = totalFiltered
@@ -568,6 +569,7 @@ const fetchMeetingAnalyticsSummary = useCallback(
       }, []);
 
       const clearAllCcQueue = useCallback(() => {
+        ccQueueRunningRef.current = false;
         setCcQueue([]);
         setCcQueueRunning(false);
       }, []);
@@ -1039,7 +1041,16 @@ const fetchMeetingAnalyticsSummary = useCallback(
                     </div>
                   </div>
 
-                  <div style={{ marginTop: 10, maxHeight: 260, overflow: "auto" }}>
+                  <div className="table-wrapper" style={{ marginTop: 10, maxHeight: 260, overflow: "auto" }}>
+                    {activeItem && (
+                      <div style={{ marginBottom: 8, opacity: 0.9, fontSize: 13 }}>
+                        Downloading:{" "}
+                        <span style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
+                          {activeItem.filename}
+                        </span>
+                      </div>
+                    )}
+
                     <table className="rec-table" style={{ margin: 0 }}>
                       <thead>
                         <tr>
@@ -1067,6 +1078,7 @@ const fetchMeetingAnalyticsSummary = useCallback(
                             </td>
                           </tr>
                         ))}
+
                         {ccQueue.length > 250 && (
                           <tr className="rec-row">
                             <td colSpan={4} style={{ opacity: 0.8 }}>
@@ -1077,6 +1089,7 @@ const fetchMeetingAnalyticsSummary = useCallback(
                       </tbody>
                     </table>
                   </div>
+
                 </div>
               )}
 
