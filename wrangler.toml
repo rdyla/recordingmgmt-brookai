@@ -1,4 +1,4 @@
-name = "recordingmgmt-brookai"
+name = "recordingmgmt-brook"
 main = "_worker.js"
 compatibility_date = "2025-11-13"
 
