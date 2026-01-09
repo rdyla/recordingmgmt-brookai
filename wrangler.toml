@@ -1,10 +1,6 @@
-name = "recordingmgmt"
+name = "recordingmgmt-brookai"
 main = "_worker.js"
 compatibility_date = "2025-11-13"
 
 [assets]
 directory = "./dist"
-
-[vars]
-ZOOM_OAUTH_REDIRECT_URI = "https://recordingmgmt.itcontact-521.workers.dev/zoom/callback"
-ZOOM_ALLOWED_EMAIL_DOMAINS = "packetfusion.com,zoom.us,zoom.com"
