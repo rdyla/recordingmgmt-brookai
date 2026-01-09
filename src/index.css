@@ -453,11 +453,11 @@ input[type="date"].form-control {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 1rem;
+  height: 1rem;
   margin-right: 0.5rem;
-  border-radius: 999px;
-  border: 1px solid rgba(148, 163, 184, 0.9); /* slate-400 */
+  /*border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.9); /* slate-400 */*/
   background: rgba(15, 23, 42, 0.85);         /* slate-900-ish */
   color: #e5e7eb;                             /* text-slate-200 */
   font-size: 0.8rem;
